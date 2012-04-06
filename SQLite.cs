@@ -11,17 +11,21 @@ namespace OpenSMO {
         public static string Filename;
         public static int Version;
         public static bool Compress;
+        public static bool UseCommit;
 
         private static SQLiteConnection conn;
         private static SQLiteCommand cmd;
 
         public static void Connect() {
-            conn = new SQLiteConnection("Data Source=" + Filename + ";Version=" + Version.ToString() + ";New=False;Compress=" + Compress.ToString() + ";");
+            UseCommit = bool.Parse(MainClass.Instance.ServerConfig.Get("Database_UseCommit"));
+
+            conn = new SQLiteConnection("Data Source=" + Filename + ";Version=" + Version.ToString() + ";New=False;Compress=" + Compress.ToString() + ";Journal Mode=Off;");
             try { conn.Open(); } catch (Exception ex) {
                 MainClass.AddLog("Couldn't open SQLite database: " + ex.Message, true);
             }
 
-            Query("BEGIN TRANSACTION");
+            if (UseCommit)
+                Query("BEGIN TRANSACTION");
         }
 
         public static bool Connected {
@@ -38,10 +42,12 @@ namespace OpenSMO {
 
         private static int commitTimer;
         public static void Update() {
-            if (++commitTimer >= MainClass.Instance.FPS * int.Parse(MainClass.Instance.ServerConfig.Get("Database_CommitTime"))) {
-                commitTimer = 0;
-                Query("COMMIT TRANSACTION");
-                Query("BEGIN TRANSACTION");
+            if (UseCommit) {
+                if (++commitTimer >= MainClass.Instance.FPS * int.Parse(MainClass.Instance.ServerConfig.Get("Database_CommitTime"))) {
+                    commitTimer = 0;
+                    Query("COMMIT TRANSACTION");
+                    Query("BEGIN TRANSACTION");
+                }
             }
         }
 
