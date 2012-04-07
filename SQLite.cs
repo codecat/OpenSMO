@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using System.Data;
-using System.Data.SQLite;
+using Mono.Data.Sqlite;
 using System.Diagnostics;
 
 namespace OpenSMO {
@@ -13,13 +13,13 @@ namespace OpenSMO {
         public static bool Compress;
         public static bool UseCommit;
 
-        private static SQLiteConnection conn;
-        private static SQLiteCommand cmd;
+        private static SqliteConnection conn;
+        private static SqliteCommand cmd;
 
         public static void Connect() {
             UseCommit = bool.Parse(MainClass.Instance.ServerConfig.Get("Database_UseCommit"));
 
-            conn = new SQLiteConnection("Data Source=" + Filename + ";Version=" + Version.ToString() + ";New=False;Compress=" + Compress.ToString() + ";Journal Mode=Off;");
+            conn = new SqliteConnection("Data Source=" + Filename + ";Version=" + Version.ToString() + ";New=False;Compress=" + Compress.ToString() + ";Journal Mode=Off;");
             try { conn.Open(); } catch (Exception ex) {
                 MainClass.AddLog("Couldn't open SQLite database: " + ex.Message, true);
             }
@@ -55,7 +55,7 @@ namespace OpenSMO {
             Stopwatch sw = new Stopwatch();
             sw.Start();
 
-            SQLiteDataReader reader = null;
+            SqliteDataReader reader = null;
 
             cmd = conn.CreateCommand();
             cmd.CommandText = qry;
