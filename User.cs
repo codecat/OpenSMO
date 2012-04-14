@@ -404,6 +404,405 @@ namespace OpenSMO {
             ez.SendPack();
         }
 
+        public void NSCPing() {
+            ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCPingR));
+            ez.Discard(); // Just to be sure.
+        }
+
+        public void NSCPingR() {
+            pingTimeout = 5;
+            ez.Discard(); // Just to be sure.
+        }
+
+        public void NSCHello() {
+            User_Protocol = ez.Read1();
+            User_Game = ez.ReadNT().Replace("\n", "|");
+
+            MainClass.AddLog(User_IP + " is using SMOP v" + User_Protocol.ToString() + " in " + User_Game);
+            PlayTime.Start();
+
+            ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCHello));
+            ez.Write1(mainClass.ServerVersion);
+            ez.WriteNT(mainClass.ServerConfig.Get("Server_Name"));
+            ez.SendPack();
+        }
+
+        public void NSCSMS() {
+            NSScreen oldScreen = CurrentScreen;
+            NSScreen newScreen = (NSScreen)ez.Read1();
+
+            if (newScreen == NSScreen.Lobby) {
+                CurrentRoom = null;
+
+                SendRoomList();
+                SendRoomPlayers();
+            }
+
+            CurrentScreen = newScreen;
+        }
+
+        public void NSCGSR() {
+            if (CurrentRoom == null) {
+                ez.Discard();
+                return;
+            }
+
+            if (!RequiresAuthentication()) return;
+
+            GameFeet = ez.Read1() / 16;
+            GameDifficulty = (NSDifficulty)(ez.Read1() / 16);
+
+            Synced = ez.Read1() == 16;
+
+            CurrentRoom.CurrentSong.Name = ez.ReadNT();
+            CurrentRoom.CurrentSong.SubTitle = ez.ReadNT();
+            CurrentRoom.CurrentSong.Artist = ez.ReadNT();
+
+            this.CourseTitle = ez.ReadNT();
+            this.SongOptions = ez.ReadNT();
+
+            string newPlayerSettings = "";
+            do {
+                newPlayerSettings += ez.ReadNT() + " ";
+            } while (ez.LastPacketSize > 0);
+            GamePlayerSettings = newPlayerSettings.Trim();
+
+            CurrentRoom.AllPlaying = true;
+            User[] checkSyncPlayers = GetUsersInRoom();
+            foreach (User user in checkSyncPlayers) {
+                if (!user.Synced)
+                    CurrentRoom.AllPlaying = false;
+            }
+
+            if (!Synced || CurrentRoom.AllPlaying) {
+                ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCGSR));
+                ez.SendPack();
+
+                if (CurrentRoom.AllPlaying) {
+                    foreach (User user in checkSyncPlayers) {
+                        user.Synced = false;
+                        user.SongTime.Restart();
+
+                        user.ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCGSR));
+                        user.ez.SendPack();
+                    }
+
+                    CurrentRoom.AllPlaying = false;
+                }
+            }
+        }
+
+        public void NSCGSU() {
+            if (!RequiresAuthentication()) return;
+
+            if (Playing && !Spectating) {
+                NSNotes gsuCtr;
+                NSGrades gsuGrade;
+                int gsuScore, gsuCombo, gsuLife;
+                double gsuOffset;
+
+                gsuCtr = (NSNotes)ez.Read1();
+                gsuGrade = (NSGrades)(ez.Read1() / 16);
+                gsuScore = ez.Read4();
+                gsuCombo = ez.Read2();
+                gsuLife = ez.Read2();
+                NoteOffsetRaw = ez.ReadU2();
+                gsuOffset = NoteOffsetRaw / 2000d - 16.384d;
+
+                NoteHit = gsuCtr;
+                NoteOffset = gsuOffset;
+
+                Notes[(int)gsuCtr]++;
+                Grade = gsuGrade;
+                Score = gsuScore;
+                Combo = gsuCombo;
+
+                if (gsuCombo > MaxCombo)
+                    MaxCombo = gsuCombo;
+            } else
+                ez.Discard();
+        }
+
+        public void NSCGON() {
+            if (!RequiresAuthentication()) return;
+
+            if (Playing && !Spectating) {
+                Playing = false;
+
+                if (CurrentRoom != null) // Required for SMOP v2
+                    CurrentRoom.Reported = false;
+
+                if (NoteCount > 0) {
+                    if (FullCombo) SendChatMessage(Func.ChatColor("00aa00") + "FULL COMBO!!");
+                    Data.AddStats(this);
+                }
+            } else {
+                if (Spectating)
+                    SendChatMessage(Func.ChatColor("aa0000") + "Spectator mode activated, no stats gained.");
+            }
+        }
+
+        public void NSCRSG() {
+            if (CurrentRoom == null) {
+                ez.Discard();
+                return;
+            }
+
+            if (!RequiresAuthentication()) return;
+
+            byte pickResponseStatus = ez.Read1();
+
+            string pickName = ez.ReadNT();
+            string pickArtist = ez.ReadNT();
+            string pickAlbum = ez.ReadNT();
+
+            switch (pickResponseStatus) {
+                case 0: // Player has song
+                    ez.Discard();
+                    return;
+
+                case 1: // Player does not have song
+                    mainClass.SendChatAll(NameFormat() + " does " + Func.ChatColor("aa0000") + "not" + Func.ChatColor("ffffff") + " have that song!", CurrentRoom);
+                    ez.Discard();
+                    return;
+            }
+
+            if (CurrentRoom.Free || CanChangeRoomSettings()) {
+                if (CurrentRoom.CurrentSong.Name == pickName &&
+                    CurrentRoom.CurrentSong.Artist == pickArtist &&
+                    CurrentRoom.CurrentSong.SubTitle == pickAlbum) {
+                    User[] pickUsers = GetUsersInRoom();
+
+                    bool canStart = true;
+                    string cantStartReason = "";
+
+                    foreach (User user in pickUsers) {
+                        if (user.CurrentScreen != NSScreen.Room) {
+                            canStart = false;
+                            cantStartReason = user.NameFormat() + " is not ready yet!";
+                        }
+                    }
+
+                    if (canStart) {
+                        foreach (User user in pickUsers) {
+                            Data.AddSong(true, this);
+                            user.SendSong(true);
+                            user.SendGameStatus();
+                        }
+                    } else
+                        mainClass.SendChatAll(cantStartReason, CurrentRoom);
+                } else {
+                    User[] pickUsers = GetUsersInRoom();
+
+                    bool canStart = true;
+                    string cantStartReason = "";
+
+                    foreach (User user in pickUsers) {
+                        if (user.CurrentScreen != NSScreen.Room) {
+                            canStart = false;
+                            cantStartReason = user.NameFormat() + " is not ready yet!";
+                        }
+                    }
+
+                    if (canStart) {
+                        Song newSong = new Song();
+
+                        newSong.Name = pickName;
+                        newSong.Artist = pickArtist;
+                        newSong.SubTitle = pickAlbum;
+
+                        CurrentRoom.CurrentSong = newSong;
+
+                        int pickSongPlayed = 0;
+                        Hashtable pickSongRow = Data.AddSong(false, this);
+                        if (pickSongRow != null) {
+                            pickSongPlayed = (int)pickSongRow["Played"];
+                            newSong.Time = (int)pickSongRow["Time"];
+                        }
+
+                        mainClass.SendChatAll(NameFormat() + " selected " + Func.ChatColor("00aa00") + pickName + Func.ChatColor("ffffff") + ", which has " + (pickSongPlayed == 0 ? "never been played." : (pickSongPlayed > 1 ? "been played " + pickSongPlayed.ToString() + " times." : "been played only once.")), CurrentRoom);
+
+                        foreach (User user in pickUsers) {
+                            user.SendSong(false);
+                            user.SongTime.Reset();
+                        }
+                    } else
+                        mainClass.SendChatAll(cantStartReason, CurrentRoom);
+                }
+            } else {
+                ez.Discard();
+                SendChatMessage("You are not the room owner. Ask " + CurrentRoom.Owner.NameFormat() + " for /free");
+            }
+        }
+
+        public void NSCUPOpts() {
+            ez.Discard(); // This contains a string with user options, but we don't really care about that too much for now.
+        }
+
+        byte packetCommandSub = 0;
+        public void NSCSMOnline() {
+            packetCommandSub = ez.Read1();
+            byte packetCommandSubSub = ez.Read1();
+
+            if (packetCommandSub == 0) { // Login
+                ez.Read1(); // Reserved byte
+
+                string smoUsername = ez.ReadNT();
+                string smoPassword = ez.ReadNT();
+
+                if (!new Regex("^([A-F0-9]{32})$").Match(smoPassword).Success) {
+                    ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCSMOnline));
+                    ez.Write2(1);
+                    ez.WriteNT("Login failed! Invalid password.");
+                    ez.SendPack();
+
+                    MainClass.AddLog("Invalid password hash given!", true);
+                    return;
+                }
+
+                Hashtable[] smoLoginCheck = Sql.Query("SELECT * FROM \"users\" WHERE \"Username\"='" + Sql.AddSlashes(smoUsername) + "'");
+                if (smoLoginCheck.Length == 1 && smoLoginCheck[0]["Password"].ToString() == smoPassword) {
+                    MainClass.AddLog(smoUsername + " logged in.");
+
+                    User_Table = smoLoginCheck[0];
+                    User_ID = (int)User_Table["ID"];
+                    User_Name = (string)User_Table["Username"];
+                    User_Rank = (UserRank)User_Table["Rank"];
+
+                    ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCSMOnline));
+                    ez.Write2(0);
+                    ez.WriteNT("Login success!");
+                    ez.SendPack();
+
+                    SendChatMessage(mainClass.ServerConfig.Get("Server_MOTD"));
+                    SendRoomList();
+
+                    User[] users = GetUsersInRoom();
+                    foreach (User user in users)
+                        user.SendRoomPlayers();
+
+                    return;
+                } else if (smoLoginCheck.Length == 0) {
+                    if (bool.Parse(mainClass.ServerConfig.Get("Allow_Registration"))) {
+                        Sql.Query("INSERT INTO main.users (\"Username\",\"Password\",\"Email\",\"Rank\",\"XP\") VALUES(\"" + Sql.AddSlashes(smoUsername) + "\",\"" + Sql.AddSlashes(smoPassword) + "\",\"\",0,0)");
+                        MainClass.AddLog(smoUsername + " is now registered with hash " + smoPassword);
+
+                        User_Table = Sql.Query("SELECT * FROM \"users\" WHERE \"Username\"='" + Sql.AddSlashes(smoUsername) + "' AND \"Password\"='" + Sql.AddSlashes(smoPassword) + "'")[0];
+                        User_ID = (int)User_Table["ID"];
+                        User_Name = (string)User_Table["Username"];
+                        User_Rank = (UserRank)User_Table["Rank"];
+
+                        ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCSMOnline));
+                        ez.Write2(0);
+                        ez.WriteNT("Login success!");
+                        ez.SendPack();
+
+                        SendChatMessage(mainClass.ServerConfig.Get("Server_MOTD"));
+                        SendRoomList();
+
+                        User[] users = GetUsersInRoom();
+                        foreach (User user in users)
+                            user.SendRoomPlayers();
+
+                        return;
+                    }
+                }
+
+                MainClass.AddLog(smoUsername + " tried logging in with hash " + smoPassword + " but failed");
+
+                ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCSMOnline));
+                ez.Write2(1);
+                ez.WriteNT("Login failed! Invalid password.");
+                ez.SendPack();
+            } else if (packetCommandSub == 01) { // Join room
+                if (!RequiresAuthentication()) return;
+
+                if (ez.LastPacketSize == 0)
+                    return;
+
+                string joinRoomName = ez.ReadNT();
+                string joinRoomPass = "";
+
+                if (ez.LastPacketSize > 0)
+                    joinRoomPass = ez.ReadNT();
+
+                foreach (Room room in mainClass.Rooms) {
+                    if (room.Name == joinRoomName && (room.Password == joinRoomPass || IsModerator())) {
+                        CurrentRoom = room;
+                        SendToRoom();
+                        break;
+                    }
+                }
+            } else if (packetCommandSub == 02) { // New room
+                if (!RequiresAuthentication()) return;
+
+                string newRoomName = ez.ReadNT();
+                string newRoomDesc = ez.ReadNT();
+                string newRoomPass = "";
+
+                if (ez.LastPacketSize > 0)
+                    newRoomPass = ez.ReadNT();
+
+                MainClass.AddLog(User_Name + " made a new room '" + newRoomName + "'");
+
+                Room newRoom = new Room(mainClass, this);
+
+                newRoom.Name = newRoomName;
+                newRoom.Description = newRoomDesc;
+                newRoom.Password = newRoomPass;
+
+                mainClass.Rooms.Add(newRoom);
+
+                User[] users = GetUsersInRoom();
+                foreach (User user in users)
+                    user.SendRoomList();
+
+                CurrentRoom = newRoom;
+                CurrentRoomRights = RoomRights.Owner;
+                SendToRoom();
+
+                SendChatMessage("Welcome to your room! Type /help for a list of commands.");
+            } else {
+                // This is probably only for command sub 3, which is information you get when you hover over a room in the lobby.
+                // TODO: Make NSCSMOnline sub packet 3 (room info on hover)
+                //MainClass.AddLog( "Discarded unknown sub-packet " + packetCommandSub.ToString() + " for NSCSMOnline" );
+                ez.Discard();
+            }
+        }
+
+        public void NSCSU() {
+            ez.Discard();
+        }
+
+        public void NSCCM() {
+            if (!RequiresAuthentication()) return;
+
+            string cmMessage = ez.ReadNT();
+            try {
+                if (cmMessage[0] == '/') {
+                    string[] cmdParse = cmMessage.Split(new char[] { ' ' }, 2);
+                    string cmdName = cmdParse[0].Substring(1);
+                    bool handled = false;
+
+                    if (mainClass.Scripting.ChatCommandHooks.ContainsKey(cmdName)) {
+                        for (int i = 0; i < mainClass.Scripting.ChatCommandHooks[cmdName].Count; i++) {
+                            bool subHandled = mainClass.Scripting.ChatCommandHooks[cmdName][i](this, cmdParse.Length == 2 ? cmdParse[1] : "");
+                            if (!handled) handled = subHandled;
+                        }
+                    }
+
+                    if (!handled)
+                        SendChatMessage("Unknown command. Type /help for a list of commands.");
+                } else {
+                    bool cmHandled = false;
+                    for (int i = 0; i < mainClass.Scripting.ChatHooks.Count; i++)
+                        cmHandled = mainClass.Scripting.ChatHooks[i](this, cmMessage);
+                    if (!cmHandled)
+                        mainClass.SendChatAll(NameFormat() + ": " + cmMessage, CurrentRoom);
+                }
+            } catch (Exception ex) { mainClass.Scripting.HandleError(ex); }
+        }
+
         int pingTimer = 0;
         int pingTimeout = 5;
         public void Update() {
@@ -441,408 +840,20 @@ namespace OpenSMO {
                 if( ez.ReadPack() == -1 ) return;
 
                 NSCommand packetCommand = (NSCommand)ez.Read1();
-                byte packetCommandSub = 0;
-                byte packetCommandSubSub = 0; // I don't know how else to call this, really.
 
                 switch( packetCommand ) {
-                    case NSCommand.NSCPing: // This is never actually sent by clients, but it's required by specifics
-                        ez.Write1( (byte)( mainClass.ServerOffset + NSCommand.NSCPingR ) );
-                        ez.Discard(); // Just to be sure.
-                        break;
-
-                    case NSCommand.NSCPingR:
-                        pingTimeout = 5;
-                        ez.Discard(); // Just to be sure.
-                        break;
-
-                    case NSCommand.NSCHello:
-                        User_Protocol = ez.Read1();
-                        User_Game = ez.ReadNT().Replace( "\n", "|" );
-
-                        MainClass.AddLog( User_IP + " is using SMOP v" + User_Protocol.ToString() + " in " + User_Game );
-                        PlayTime.Start();
-
-                        ez.Write1( (byte)( mainClass.ServerOffset + NSCommand.NSCHello ) );
-                        ez.Write1( mainClass.ServerVersion );
-                        ez.WriteNT( mainClass.ServerConfig.Get( "Server_Name" ) );
-                        ez.SendPack();
-                        break;
-
-                    case NSCommand.NSCSMS:
-                        NSScreen oldScreen = CurrentScreen;
-                        NSScreen newScreen = (NSScreen)ez.Read1();
-
-                        if( newScreen == NSScreen.Lobby ) {
-                            CurrentRoom = null;
-
-                            SendRoomList();
-                            SendRoomPlayers();
-                        }
-
-                        CurrentScreen = newScreen;
-                        break;
-
-                    case NSCommand.NSCGSR:
-                        if( CurrentRoom == null ) {
-                            ez.Discard();
-                            break;
-                        }
-
-                        if( !RequiresAuthentication() ) return;
-
-                        GameFeet = ez.Read1() / 16;
-                        GameDifficulty = (NSDifficulty)( ez.Read1() / 16 );
-
-                        Synced = ez.Read1() == 16;
-
-                        CurrentRoom.CurrentSong.Name = ez.ReadNT();
-                        CurrentRoom.CurrentSong.SubTitle = ez.ReadNT();
-                        CurrentRoom.CurrentSong.Artist = ez.ReadNT();
-
-                        this.CourseTitle = ez.ReadNT();
-                        this.SongOptions = ez.ReadNT();
-
-                        string newPlayerSettings = "";
-                        do {
-                            newPlayerSettings += ez.ReadNT() + " ";
-                        } while( ez.LastPacketSize > 0 );
-                        GamePlayerSettings = newPlayerSettings.Trim();
-
-                        CurrentRoom.AllPlaying = true;
-                        User[] checkSyncPlayers = GetUsersInRoom();
-                        foreach( User user in checkSyncPlayers ) {
-                            if( !user.Synced )
-                                CurrentRoom.AllPlaying = false;
-                        }
-
-                        if( !Synced || CurrentRoom.AllPlaying ) {
-                            ez.Write1( (byte)( mainClass.ServerOffset + NSCommand.NSCGSR ) );
-                            ez.SendPack();
-
-                            if( CurrentRoom.AllPlaying ) {
-                                foreach( User user in checkSyncPlayers ) {
-                                    user.Synced = false;
-                                    user.SongTime.Restart();
-
-                                    user.ez.Write1( (byte)( mainClass.ServerOffset + NSCommand.NSCGSR ) );
-                                    user.ez.SendPack();
-                                }
-
-                                CurrentRoom.AllPlaying = false;
-                            }
-                        }
-                        break;
-
-                    case NSCommand.NSCGSU:
-                        if( !RequiresAuthentication() ) return;
-
-                        if( Playing && !Spectating ) {
-                            NSNotes gsuCtr;
-                            NSGrades gsuGrade;
-                            int gsuScore, gsuCombo, gsuLife;
-                            double gsuOffset;
-
-                            gsuCtr = (NSNotes)ez.Read1();
-                            gsuGrade = (NSGrades)( ez.Read1() / 16 );
-                            gsuScore = ez.Read4();
-                            gsuCombo = ez.Read2();
-                            gsuLife = ez.Read2();
-                            NoteOffsetRaw = ez.ReadU2();
-                            gsuOffset = NoteOffsetRaw / 2000d - 16.384d;
-
-                            NoteHit = gsuCtr;
-                            NoteOffset = gsuOffset;
-
-                            Notes[ (int)gsuCtr ]++;
-                            Grade = gsuGrade;
-                            Score = gsuScore;
-                            Combo = gsuCombo;
-
-                            if( gsuCombo > MaxCombo )
-                                MaxCombo = gsuCombo;
-                        } else
-                            ez.Discard();
-                        break;
-
-                    case NSCommand.NSCGON:
-                        if( !RequiresAuthentication() ) return;
-
-                        if( Playing && !Spectating ) {
-                            Playing = false;
-
-                            if( CurrentRoom != null ) // Required for SMOP v2
-                                CurrentRoom.Reported = false;
-
-                            if( NoteCount > 0 ) {
-                                if( FullCombo ) SendChatMessage( Func.ChatColor( "00aa00" ) + "FULL COMBO!!" );
-                                Data.AddStats( this );
-                            }
-                        } else {
-                            if( Spectating )
-                                SendChatMessage( Func.ChatColor( "aa0000" ) + "Spectator mode activated, no stats gained." );
-                        }
-                        break;
-
-                    case NSCommand.NSCRSG:
-                        if( CurrentRoom == null ) {
-                            ez.Discard();
-                            break;
-                        }
-
-                        if( !RequiresAuthentication() ) return;
-
-                        byte pickResponseStatus = ez.Read1();
-
-                        string pickName = ez.ReadNT();
-                        string pickArtist = ez.ReadNT();
-                        string pickAlbum = ez.ReadNT();
-
-                        switch( pickResponseStatus ) {
-                            case 0: // Player has song
-                                ez.Discard();
-                                return;
-
-                            case 1: // Player does not have song
-                                mainClass.SendChatAll( NameFormat() + " does " + Func.ChatColor( "aa0000" ) + "not" + Func.ChatColor( "ffffff" ) + " have that song!" );
-                                ez.Discard();
-                                return;
-                        }
-
-                        if( CurrentRoom.Free || CanChangeRoomSettings() ) {
-                            if( CurrentRoom.CurrentSong.Name == pickName &&
-                                CurrentRoom.CurrentSong.Artist == pickArtist &&
-                                CurrentRoom.CurrentSong.SubTitle == pickAlbum ) {
-                                User[] pickUsers = GetUsersInRoom();
-
-                                bool canStart = true;
-                                string cantStartReason = "";
-
-                                foreach( User user in pickUsers ) {
-                                    if( user.CurrentScreen != NSScreen.Room ) {
-                                        canStart = false;
-                                        cantStartReason = user.NameFormat() + " is not ready yet!";
-                                    }
-                                }
-
-                                if( canStart ) {
-                                    foreach( User user in pickUsers ) {
-                                        Data.AddSong( true, this );
-                                        user.SendSong( true );
-                                        user.SendGameStatus();
-                                    }
-                                } else
-                                    mainClass.SendChatAll( cantStartReason, CurrentRoom );
-                            } else {
-                                User[] pickUsers = GetUsersInRoom();
-
-                                bool canStart = true;
-                                string cantStartReason = "";
-
-                                foreach( User user in pickUsers ) {
-                                    if( user.CurrentScreen != NSScreen.Room ) {
-                                        canStart = false;
-                                        cantStartReason = user.NameFormat() + " is not ready yet!";
-                                    }
-                                }
-
-                                if( canStart ) {
-                                    Song newSong = new Song();
-
-                                    newSong.Name = pickName;
-                                    newSong.Artist = pickArtist;
-                                    newSong.SubTitle = pickAlbum;
-
-                                    CurrentRoom.CurrentSong = newSong;
-
-                                    int pickSongPlayed = 0;
-                                    Hashtable pickSongRow = Data.AddSong( false, this );
-                                    if( pickSongRow != null ) {
-                                        pickSongPlayed = (int)pickSongRow[ "Played" ];
-                                        newSong.Time = (int)pickSongRow[ "Time" ];
-                                    }
-
-                                    mainClass.SendChatAll( NameFormat() + " selected " + Func.ChatColor( "00aa00" ) + pickName + Func.ChatColor( "ffffff" ) + ", which has " + ( pickSongPlayed == 0 ? "never been played." : ( pickSongPlayed > 1 ? "been played " + pickSongPlayed.ToString() + " times." : "been played only once." ) ), CurrentRoom );
-
-                                    foreach (User user in pickUsers) {
-                                        user.SendSong(false);
-                                        user.SongTime.Reset();
-                                    }
-                                } else
-                                    mainClass.SendChatAll( cantStartReason, CurrentRoom );
-                            }
-                        } else {
-                            ez.Discard();
-                            SendChatMessage( "You are not the room owner. Ask " + CurrentRoom.Owner.NameFormat() + " for /free" );
-                        }
-                        break;
-
-                    case NSCommand.NSCUPOpts:
-                        ez.Discard(); // This contains a string with user options, but we don't really care about that too much for now.
-                        break;
-
-                    case NSCommand.NSCSMOnline:
-                        packetCommandSub = ez.Read1();
-                        packetCommandSubSub = ez.Read1();
-
-                        if( packetCommandSub == 0 ) { // Login
-                            ez.Read1(); // Reserved byte
-
-                            string smoUsername = ez.ReadNT();
-                            string smoPassword = ez.ReadNT();
-
-                            if( !new Regex( "^([A-F0-9]{32})$" ).Match( smoPassword ).Success ) {
-                                ez.Write1( (byte)( mainClass.ServerOffset + NSCommand.NSCSMOnline ) );
-                                ez.Write2( 1 );
-                                ez.WriteNT( "Login failed! Invalid password." );
-                                ez.SendPack();
-
-                                MainClass.AddLog( "Invalid password hash given!", true );
-                                break;
-                            }
-
-                            Hashtable[] smoLoginCheck = Sql.Query( "SELECT * FROM \"users\" WHERE \"Username\"='" + Sql.AddSlashes( smoUsername ) + "'" );
-                            if( smoLoginCheck.Length == 1 && smoLoginCheck[ 0 ][ "Password" ].ToString() == smoPassword ) {
-                                MainClass.AddLog( smoUsername + " logged in." );
-
-                                User_Table = smoLoginCheck[ 0 ];
-                                User_ID = (int)User_Table[ "ID" ];
-                                User_Name = (string)User_Table[ "Username" ];
-                                User_Rank = (UserRank)User_Table[ "Rank" ];
-
-                                ez.Write1( (byte)( mainClass.ServerOffset + NSCommand.NSCSMOnline ) );
-                                ez.Write2( 0 );
-                                ez.WriteNT( "Login success!" );
-                                ez.SendPack();
-
-                                SendChatMessage( mainClass.ServerConfig.Get( "Server_MOTD" ) );
-                                SendRoomList();
-
-                                User[] users = GetUsersInRoom();
-                                foreach( User user in users )
-                                    user.SendRoomPlayers();
-
-                                break;
-                            } else if( smoLoginCheck.Length == 0 ) {
-                                if( bool.Parse( mainClass.ServerConfig.Get( "Allow_Registration" ) ) ) {
-                                    Sql.Query( "INSERT INTO main.users (\"Username\",\"Password\",\"Email\",\"Rank\",\"XP\") VALUES(\"" + Sql.AddSlashes( smoUsername ) + "\",\"" + Sql.AddSlashes( smoPassword ) + "\",\"\",0,0)" );
-                                    MainClass.AddLog( smoUsername + " is now registered with hash " + smoPassword );
-
-                                    User_Table = Sql.Query( "SELECT * FROM \"users\" WHERE \"Username\"='" + Sql.AddSlashes( smoUsername ) + "' AND \"Password\"='" + Sql.AddSlashes( smoPassword ) + "'" )[ 0 ];
-                                    User_ID = (int)User_Table[ "ID" ];
-                                    User_Name = (string)User_Table[ "Username" ];
-                                    User_Rank = (UserRank)User_Table[ "Rank" ];
-
-                                    ez.Write1( (byte)( mainClass.ServerOffset + NSCommand.NSCSMOnline ) );
-                                    ez.Write2( 0 );
-                                    ez.WriteNT( "Login success!" );
-                                    ez.SendPack();
-
-                                    SendChatMessage( mainClass.ServerConfig.Get( "Server_MOTD" ) );
-                                    SendRoomList();
-
-                                    User[] users = GetUsersInRoom();
-                                    foreach( User user in users )
-                                        user.SendRoomPlayers();
-
-                                    break;
-                                }
-                            }
-
-                            MainClass.AddLog( smoUsername + " tried logging in with hash " + smoPassword + " but failed" );
-
-                            ez.Write1( (byte)( mainClass.ServerOffset + NSCommand.NSCSMOnline ) );
-                            ez.Write2( 1 );
-                            ez.WriteNT( "Login failed! Invalid password." );
-                            ez.SendPack();
-                        } else if( packetCommandSub == 01 ) { // Join room
-                            if( !RequiresAuthentication() ) return;
-
-                            if( ez.LastPacketSize == 0 )
-                                break;
-
-                            string joinRoomName = ez.ReadNT();
-                            string joinRoomPass = "";
-
-                            if( ez.LastPacketSize > 0 )
-                                joinRoomPass = ez.ReadNT();
-
-                            foreach( Room room in mainClass.Rooms ) {
-                                if( room.Name == joinRoomName && ( room.Password == joinRoomPass || IsModerator() ) ) {
-                                    CurrentRoom = room;
-                                    SendToRoom();
-                                    break;
-                                }
-                            }
-                        } else if( packetCommandSub == 02 ) { // New room
-                            if( !RequiresAuthentication() ) return;
-
-                            string newRoomName = ez.ReadNT();
-                            string newRoomDesc = ez.ReadNT();
-                            string newRoomPass = "";
-
-                            if( ez.LastPacketSize > 0 )
-                                newRoomPass = ez.ReadNT();
-
-                            MainClass.AddLog( User_Name + " made a new room '" + newRoomName + "'" );
-
-                            Room newRoom = new Room( mainClass, this );
-
-                            newRoom.Name = newRoomName;
-                            newRoom.Description = newRoomDesc;
-                            newRoom.Password = newRoomPass;
-
-                            mainClass.Rooms.Add( newRoom );
-
-                            User[] users = GetUsersInRoom();
-                            foreach( User user in users )
-                                user.SendRoomList();
-
-                            CurrentRoom = newRoom;
-                            CurrentRoomRights = RoomRights.Owner;
-                            SendToRoom();
-
-                            SendChatMessage( "Welcome to your room! Type /help for a list of commands." );
-                        } else {
-                            // This is probably only for command sub 3, which is information you get when you hover over a room in the lobby.
-                            // TODO: Make NSCSMOnline sub packet 3 (room info on hover)
-                            //MainClass.AddLog( "Discarded unknown sub-packet " + packetCommandSub.ToString() + " for NSCSMOnline" );
-                            ez.Discard();
-                        }
-                        break;
-
-                    case NSCommand.NSCSU:
-                        ez.Discard();
-                        break;
-
-                    case NSCommand.NSCCM:
-                        if( !RequiresAuthentication() ) return;
-
-                        string cmMessage = ez.ReadNT();
-                        try {
-                            if( cmMessage[ 0 ] == '/' ) {
-                                string[] cmdParse = cmMessage.Split( new char[] { ' ' }, 2 );
-                                string cmdName = cmdParse[ 0 ].Substring( 1 );
-                                bool handled = false;
-
-                                if( mainClass.Scripting.ChatCommandHooks.ContainsKey( cmdName ) ) {
-                                    for( int i = 0; i < mainClass.Scripting.ChatCommandHooks[ cmdName ].Count; i++ ) {
-                                        bool subHandled = mainClass.Scripting.ChatCommandHooks[ cmdName ][ i ]( this, cmdParse.Length == 2 ? cmdParse[ 1 ] : "" );
-                                        if( !handled ) handled = subHandled;
-                                    }
-                                }
-
-                                if( !handled )
-                                    SendChatMessage( "Unknown command. Type /help for a list of commands." );
-                            } else {
-                                bool cmHandled = false;
-                                for( int i = 0; i < mainClass.Scripting.ChatHooks.Count; i++ )
-                                    cmHandled = mainClass.Scripting.ChatHooks[ i ]( this, cmMessage );
-                                if( !cmHandled )
-                                    mainClass.SendChatAll( NameFormat() + ": " + cmMessage, CurrentRoom );
-                            }
-                        } catch( Exception ex ) { mainClass.Scripting.HandleError( ex ); }
-                        break;
-
+                    case NSCommand.NSCPing: this.NSCPing(); break;
+                    case NSCommand.NSCPingR: this.NSCPingR(); break;
+                    case NSCommand.NSCHello: this.NSCHello(); break;
+                    case NSCommand.NSCSMS: this.NSCSMS(); break;
+                    case NSCommand.NSCGSR: this.NSCGSR(); break;
+                    case NSCommand.NSCGSU: this.NSCGSU(); break;
+                    case NSCommand.NSCGON: this.NSCGON(); break;
+                    case NSCommand.NSCRSG: this.NSCRSG(); break;
+                    case NSCommand.NSCUPOpts: this.NSCUPOpts(); break;
+                    case NSCommand.NSCSMOnline: this.NSCSMOnline(); break;
+                    case NSCommand.NSCSU: this.NSCSU(); break;
+                    case NSCommand.NSCCM: this.NSCCM(); break;
                     default:
                         MainClass.AddLog( "Packet " + packetCommand.ToString() + " discarded!" );
                         ez.Discard();

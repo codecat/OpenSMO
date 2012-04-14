@@ -25,7 +25,7 @@ namespace OpenSMO {
         public Config ServerConfig;
         public Scripting Scripting;
 
-        public static int Build = 3;
+        public static int Build = 4;
         public static MainClass Instance;
         public static DateTime StartTime;
 
