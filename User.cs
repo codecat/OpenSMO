@@ -803,6 +803,13 @@ namespace OpenSMO {
             } catch (Exception ex) { mainClass.Scripting.HandleError(ex); }
         }
 
+        void couldntReadData() {
+            MainClass.AddLog("Couldn't read data from " + this.User_Name + ", user disconnecting");
+            if (CurrentRoom != null) CurrentRoom = null;
+            mainClass.Users.Remove(this);
+            this.tcpClient.Close();
+        }
+
         int pingTimer = 0;
         int pingTimeout = 5;
         public void Update() {
@@ -837,9 +844,20 @@ namespace OpenSMO {
             }
 
             if( tcpClient.Available > 0 ) {
-                if( ez.ReadPack() == -1 ) return;
+                try {
+                    if (ez.ReadPack() == -1) return;
+                } catch {
+                    this.couldntReadData();
+                    return;
+                }
 
-                NSCommand packetCommand = (NSCommand)ez.Read1();
+                NSCommand packetCommand;
+                try {
+                    packetCommand = (NSCommand)ez.Read1();
+                } catch {
+                    this.couldntReadData();
+                    return;
+                }
 
                 switch( packetCommand ) {
                     case NSCommand.NSCPing: this.NSCPing(); break;
