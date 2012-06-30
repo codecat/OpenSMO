@@ -37,43 +37,43 @@ namespace OpenSMO {
 
                 User[] lobbyUsers = GetUsersInRoom();
 
-                if( value == null ) {
-                    if( oldRoom == null ) return;
+                if (value == null) {
+                    if (oldRoom == null) return;
 
                     User[] users = oldRoom.Users.ToArray();
-                    if( users.Length == 0 ) {
-                        MainClass.AddLog( "Removing room '" + oldRoom.Name + "'" );
-                        mainClass.Rooms.Remove( oldRoom );
+                    if (users.Length == 0) {
+                        MainClass.AddLog("Removing room '" + oldRoom.Name + "'");
+                        mainClass.Rooms.Remove(oldRoom);
 
-                        foreach( User user in lobbyUsers )
+                        foreach (User user in lobbyUsers)
                             user.SendRoomList();
                     } else {
-                        mainClass.SendChatAll( NameFormat() + " left the room.", oldRoom, this );
+                        mainClass.SendChatAll(NameFormat() + " left the room.", oldRoom, this);
 
-                        foreach( User user in users )
+                        foreach (User user in users)
                             user.SendRoomPlayers();
 
-                        if( users.Length > 0 ) {
-                            if( CurrentRoomRights == RoomRights.Owner ) {
+                        if (users.Length > 0) {
+                            if (CurrentRoomRights == RoomRights.Owner) {
                                 User newOwner;
                                 int tmout = 0;
                                 do {
-                                    newOwner = users[ MainClass.rnd.Next( users.Length ) ];
-                                    if( ++tmout == 15 ) return;
-                                } while( newOwner == this );
+                                    newOwner = users[MainClass.rnd.Next(users.Length)];
+                                    if (++tmout == 15) return;
+                                } while (newOwner == this);
                                 newOwner.CurrentRoomRights = RoomRights.Owner;
                                 newOwner.CurrentRoom.Owner = newOwner;
-                                mainClass.SendChatAll( newOwner.NameFormat() + " is now room owner.", newOwner.CurrentRoom );
+                                mainClass.SendChatAll(newOwner.NameFormat() + " is now room owner.", newOwner.CurrentRoom);
                             }
                         } else {
-                            MainClass.AddLog( "Removing room '" + oldRoom.Name + "'" );
-                            mainClass.Rooms.Remove( oldRoom );
+                            MainClass.AddLog("Removing room '" + oldRoom.Name + "'");
+                            mainClass.Rooms.Remove(oldRoom);
                             oldRoom = null;
                         }
                         CurrentRoomRights = RoomRights.Player;
                     }
 
-                    foreach( User user in lobbyUsers )
+                    foreach (User user in lobbyUsers)
                         user.SendRoomPlayers();
                 }
             }
@@ -93,10 +93,10 @@ namespace OpenSMO {
         public int[] Notes;
         public int NoteCount {
             get {
-                if( Notes == null ) return 0;
+                if (Notes == null) return 0;
                 int ret = 0;
-                for( int i = 3; i <= 8; i++ )
-                    ret += Notes[ i ];
+                for (int i = 3; i <= 8; i++)
+                    ret += Notes[i];
                 return ret;
             }
         }
@@ -107,8 +107,8 @@ namespace OpenSMO {
         public NSGrades Grade {
             get { return _Grade; }
             set {
-                if( bool.Parse( mainClass.ServerConfig.Get( "Game_FullComboIsAA" ) ) ) {
-                    if( value >= NSGrades.A && FullCombo ) {
+                if (bool.Parse(mainClass.ServerConfig.Get("Game_FullComboIsAA"))) {
+                    if (value >= NSGrades.A && FullCombo) {
                         _Grade = NSGrades.AA;
                         return;
                     }
@@ -133,35 +133,35 @@ namespace OpenSMO {
 
         public int SMOScore {
             get {
-                if( Notes == null ) return 0;
+                if (Notes == null) return 0;
 
                 int ret = 0;
-                for( int i = 4; i <= 8; i++ )
-                    ret += Notes[ i ] * ( i - 3 );
+                for (int i = 4; i <= 8; i++)
+                    ret += Notes[i] * (i - 3);
                 return ret;
             }
         }
         public bool FullCombo {
             get {
                 int badCount = 0;
-                for( int i = 0; i <= 5; i++ )
-                    badCount += Notes[ i ];
+                for (int i = 0; i <= 5; i++)
+                    badCount += Notes[i];
                 return badCount == 0;
             }
         }
 
-        public User( MainClass mainClass, TcpClient tcpClient ) {
+        public User(MainClass mainClass, TcpClient tcpClient) {
             this.mainClass = mainClass;
             this.tcpClient = tcpClient;
 
-            this.User_IP = tcpClient.Client.RemoteEndPoint.ToString().Split( ':' )[ 0 ];
+            this.User_IP = tcpClient.Client.RemoteEndPoint.ToString().Split(':')[0];
 
             NetworkStream stream = tcpClient.GetStream();
-            stream.ReadTimeout = int.Parse( mainClass.ServerConfig.Get( "Server_ReadTimeout" ) );
-            this.tcpWriter = new BinaryWriter( stream );
-            this.tcpReader = new BinaryReader( stream );
+            stream.ReadTimeout = int.Parse(mainClass.ServerConfig.Get("Server_ReadTimeout"));
+            this.tcpWriter = new BinaryWriter(stream);
+            this.tcpReader = new BinaryReader(stream);
 
-            ez = new Ez( this );
+            ez = new Ez(this);
         }
 
         ~User() {
@@ -169,7 +169,7 @@ namespace OpenSMO {
         }
 
         public bool RequiresAuthentication() {
-            if( User_Name == "" ) {
+            if (User_Name == "") {
                 Kick();
                 return false;
             }
@@ -177,7 +177,7 @@ namespace OpenSMO {
         }
 
         public bool RequiresRoom() {
-            if( CurrentRoom == null ) {
+            if (CurrentRoom == null) {
                 Kick();
                 return false;
             }
@@ -185,17 +185,17 @@ namespace OpenSMO {
         }
 
         public void Kick() {
-            MainClass.AddLog( "Client '" + this.User_Name + "' kicked." );
-            if( this.CurrentRoom != null ) this.CurrentRoom = null;
+            MainClass.AddLog("Client '" + this.User_Name + "' kicked.");
+            if (this.CurrentRoom != null) this.CurrentRoom = null;
             this.Disconnect();
         }
 
         public void Ban() {
-            Data.BanUser( this, 0 );
+            Data.BanUser(this, 0);
         }
 
-        public void Ban( int originID ) {
-            Data.BanUser( this, originID );
+        public void Ban(int originID) {
+            Data.BanUser(this, originID);
         }
 
         public void KickBan() {
@@ -203,15 +203,15 @@ namespace OpenSMO {
             this.Kick();
         }
 
-        public void KickBan( int originID ) {
-            this.Ban( originID );
+        public void KickBan(int originID) {
+            this.Ban(originID);
             this.Kick();
         }
 
         public void Disconnect() {
-            MainClass.AddLog( "Client '" + this.User_Name + "' disconnected." );
-            if( this.CurrentRoom != null )
-                this.CurrentRoom.Users.Remove( this );
+            MainClass.AddLog("Client '" + this.User_Name + "' disconnected.");
+            if (this.CurrentRoom != null)
+                this.CurrentRoom.Users.Remove(this);
             this.tcpClient.Close();
             this.Connected = false;
         }
@@ -219,51 +219,51 @@ namespace OpenSMO {
         public string NameFormat() {
             string current = User_Name;
 
-            for( int i = 0; i < mainClass.Scripting.NameFormatHooks.Count; i++ ) {
+            for (int i = 0; i < mainClass.Scripting.NameFormatHooks.Count; i++) {
                 try {
-                    current = mainClass.Scripting.NameFormatHooks[ i ]( this, current );
-                } catch( Exception ex ) { mainClass.Scripting.HandleError( ex ); }
+                    current = mainClass.Scripting.NameFormatHooks[i](this, current);
+                } catch (Exception ex) { mainClass.Scripting.HandleError(ex); }
             }
 
-            return current + Func.ChatColor( "ffffff" );
+            return current + Func.ChatColor("ffffff");
         }
 
-        public void SendChatMessage( string Message ) {
-            ez.Write1( (byte)( mainClass.ServerOffset + NSCommand.NSCCM ) );
-            ez.WriteNT( " " + ( Message.StartsWith( "|c0" ) ? "" : Func.ChatColor( "ffffff" ) ) + Message + " " );
+        public void SendChatMessage(string Message) {
+            ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCCM));
+            ez.WriteNT(" " + (Message.StartsWith("|c0") ? "" : Func.ChatColor("ffffff")) + Message + " ");
             ez.SendPack();
         }
 
         public void SendRoomList() {
-            ez.Write1( (byte)( mainClass.ServerOffset + NSCommand.NSCSMOnline ) );
-            ez.Write1( (byte)1 );
-            ez.Write1( (byte)1 );
+            ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCSMOnline));
+            ez.Write1((byte)1);
+            ez.Write1((byte)1);
 
-            if( ShadowBanned ) {
-                ez.Write1( (byte)0 );
+            if (ShadowBanned) {
+                ez.Write1((byte)0);
             } else {
                 byte visibleRoomCount = 0;
-                foreach( Room r in mainClass.Rooms ) {
-                    if( !r.Owner.ShadowBanned )
+                foreach (Room r in mainClass.Rooms) {
+                    if (!r.Owner.ShadowBanned)
                         visibleRoomCount++;
                 }
-                ez.Write1( visibleRoomCount );
+                ez.Write1(visibleRoomCount);
 
-                foreach( Room room in mainClass.Rooms ) {
-                    if( !room.Owner.ShadowBanned ) {
-                        ez.WriteNT( room.Name );
-                        ez.WriteNT( room.Description );
+                foreach (Room room in mainClass.Rooms) {
+                    if (!room.Owner.ShadowBanned) {
+                        ez.WriteNT(room.Name);
+                        ez.WriteNT(room.Description);
                     }
                 }
 
-                foreach( Room room in mainClass.Rooms ) {
-                    if( !room.Owner.ShadowBanned )
-                        ez.Write1( (byte)room.Status );
+                foreach (Room room in mainClass.Rooms) {
+                    if (!room.Owner.ShadowBanned)
+                        ez.Write1((byte)room.Status);
                 }
 
-                foreach( Room room in mainClass.Rooms ) {
-                    if( !room.Owner.ShadowBanned )
-                        ez.Write1( (byte)( room.Password != "" ? 1 : 0 ) );
+                foreach (Room room in mainClass.Rooms) {
+                    if (!room.Owner.ShadowBanned)
+                        ez.Write1((byte)(room.Password != "" ? 1 : 0));
                 }
             }
 
@@ -271,30 +271,30 @@ namespace OpenSMO {
         }
 
         public void SendToRoom() {
-            if( CurrentRoom != null ) {
+            if (CurrentRoom != null) {
                 SendRoomList();
 
-                ez.Write1( (byte)( mainClass.ServerOffset + NSCommand.NSCSMOnline ) );
-                ez.Write1( 1 );
-                ez.Write1( 0 );
-                ez.WriteNT( CurrentRoom.Name );
-                ez.WriteNT( CurrentRoom.Description );
-                ez.Write1( 1 ); // If this is 0, it won't change the players' screen
+                ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCSMOnline));
+                ez.Write1(1);
+                ez.Write1(0);
+                ez.WriteNT(CurrentRoom.Name);
+                ez.WriteNT(CurrentRoom.Description);
+                ez.Write1(1); // If this is 0, it won't change the players' screen
                 ez.SendPack();
 
-                foreach( User user in mainClass.Users )
+                foreach (User user in mainClass.Users)
                     user.SendRoomPlayers();
 
-                mainClass.SendChatAll( NameFormat() + Func.ChatColor( "ffffff" ) + " joined the room.", CurrentRoom );
+                mainClass.SendChatAll(NameFormat() + Func.ChatColor("ffffff") + " joined the room.", CurrentRoom);
             } else
-                MainClass.AddLog( "Not supported: Kicking from room. Fixme! User::SendToRoom", true );
+                MainClass.AddLog("Not supported: Kicking from room. Fixme! User::SendToRoom", true);
         }
 
         public User[] GetUsersInRoom() {
             List<User> ret = new List<User>();
-            foreach( User user in mainClass.Users ) {
-                if( user.CurrentRoom == this.CurrentRoom )
-                    ret.Add( user );
+            foreach (User user in mainClass.Users) {
+                if (user.CurrentRoom == this.CurrentRoom)
+                    ret.Add(user);
             }
             return ret.ToArray();
         }
@@ -302,60 +302,60 @@ namespace OpenSMO {
         public void SendRoomPlayers() {
             User[] users = GetUsersInRoom();
 
-            ez.Write1( (byte)( mainClass.ServerOffset + NSCommand.NSCUUL ) );
-            ez.Write1( mainClass.ServerMaxPlayers ); // Not used clientside
+            ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCUUL));
+            ez.Write1(mainClass.ServerMaxPlayers); // Not used clientside
 
-            if( ShadowBanned ) {
-                ez.Write1( (byte)1 );
-                ez.Write1( 1 );
-                ez.WriteNT( User_Name );
+            if (ShadowBanned) {
+                ez.Write1((byte)1);
+                ez.Write1(1);
+                ez.WriteNT(User_Name);
             } else {
-                ez.Write1( (byte)users.Length );
+                ez.Write1((byte)users.Length);
 
-                foreach( User user in users ) {
-                    ez.Write1( 1 ); // status
-                    ez.WriteNT( user.User_Name );
+                foreach (User user in users) {
+                    ez.Write1(1); // status
+                    ez.WriteNT(user.User_Name);
                 }
             }
 
             ez.SendPack();
         }
 
-        public void SendSong( bool Start ) {
-            if( Start ) {
+        public void SendSong(bool Start) {
+            if (Start) {
                 Playing = true;
                 CurrentRoom.Status = RoomStatus.Closed;
 
                 // Reset
-                Notes = new int[ (int)NSNotes.NUM_NS_NOTES ];
+                Notes = new int[(int)NSNotes.NUM_NS_NOTES];
                 Score = 0;
                 Combo = 0;
                 MaxCombo = 0;
                 Grade = NSGrades.AAAA;
             }
 
-            ez.Write1( (byte)( mainClass.ServerOffset + NSCommand.NSCRSG ) );
-            ez.Write1( Start ? (byte)2 : (byte)1 );
-            ez.WriteNT( CurrentRoom.CurrentSong.Name );
-            ez.WriteNT( CurrentRoom.CurrentSong.Artist );
-            ez.WriteNT( CurrentRoom.CurrentSong.SubTitle );
+            ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCRSG));
+            ez.Write1(Start ? (byte)2 : (byte)1);
+            ez.WriteNT(CurrentRoom.CurrentSong.Name);
+            ez.WriteNT(CurrentRoom.CurrentSong.Artist);
+            ez.WriteNT(CurrentRoom.CurrentSong.SubTitle);
             ez.SendPack();
         }
 
-        public void SendGameStatusColumn( byte ColumnID ) {
-            ez.Write1( (byte)( mainClass.ServerOffset + NSCommand.NSCGSU ) );
-            ez.Write1( ColumnID );
+        public void SendGameStatusColumn(byte ColumnID) {
+            ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCGSU));
+            ez.Write1(ColumnID);
 
             User[] origColumnUsers = GetUsersInRoom();
-            User[] columnUsers = ( from user in origColumnUsers where user.Playing orderby user.SMOScore descending select user ).ToArray();
-            ez.Write1( (byte)columnUsers.Length );
+            User[] columnUsers = (from user in origColumnUsers where user.Playing orderby user.SMOScore descending select user).ToArray();
+            ez.Write1((byte)columnUsers.Length);
 
-            switch( ColumnID ) {
+            switch (ColumnID) {
                 case 0: // Positions
-                    for( int i = 0; i < columnUsers.Length; i++ ) {
-                        for( int j = 0; j < origColumnUsers.Length; j++ ) {
-                            if( origColumnUsers[ j ] == columnUsers[ i ] ) {
-                                ez.Write1( (byte)j );
+                    for (int i = 0; i < columnUsers.Length; i++) {
+                        for (int j = 0; j < origColumnUsers.Length; j++) {
+                            if (origColumnUsers[j] == columnUsers[i]) {
+                                ez.Write1((byte)j);
                                 break;
                             }
                         }
@@ -363,13 +363,13 @@ namespace OpenSMO {
                     break;
 
                 case 1: // Combo
-                    foreach( User user in columnUsers )
-                        ez.Write2( (short)user.Combo );
+                    foreach (User user in columnUsers)
+                        ez.Write2((short)user.Combo);
                     break;
 
                 case 2: // Grade
-                    foreach( User user in columnUsers )
-                        ez.Write1( (byte)user.Grade );
+                    foreach (User user in columnUsers)
+                        ez.Write1((byte)user.Grade);
                     break;
             }
 
@@ -377,9 +377,9 @@ namespace OpenSMO {
         }
 
         public void SendGameStatus() {
-            SendGameStatusColumn( 0 );
-            SendGameStatusColumn( 1 );
-            SendGameStatusColumn( 2 );
+            SendGameStatusColumn(0);
+            SendGameStatusColumn(1);
+            SendGameStatusColumn(2);
         }
 
         public bool IsModerator() {
@@ -391,16 +391,16 @@ namespace OpenSMO {
         }
 
         public bool CanChangeRoomSettings() {
-            if( CurrentRoom != null )
+            if (CurrentRoom != null)
                 return CurrentRoomRights >= RoomRights.Operator || IsModerator();
             return false;
         }
 
-        public void SendAttack( string modifiers, int ms ) {
-            ez.Write1( (byte)( mainClass.ServerOffset + NSCommand.NSCAttack ) );
-            ez.Write1( 0 ); // iPlayerNumber <-- Most of the times 0.
-            ez.Write4( ms ); // fSecsRemaining / 1000.0f <-- Thus, in milliseconds.
-            ez.WriteNT( modifiers ); // "300% wave, *4 -300% beat" <-- Deadly.
+        public void SendAttack(string modifiers, int ms) {
+            ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCAttack));
+            ez.Write1(0); // iPlayerNumber <-- Most of the times 0.
+            ez.Write4(ms); // fSecsRemaining / 1000.0f <-- Thus, in milliseconds.
+            ez.WriteNT(modifiers); // "300% wave, *4 -300% beat" <-- Deadly.
             ez.SendPack();
         }
 
@@ -823,22 +823,22 @@ namespace OpenSMO {
         int pingTimer = 0;
         int pingTimeout = 5;
         public void Update() {
-            if( ++pingTimer == mainClass.FPS ) {
-                if( pingTimeout > 0 ) {
+            if (++pingTimer == mainClass.FPS) {
+                if (pingTimeout > 0) {
                     pingTimer = 0;
                     pingTimeout = 5;
 
-                    ez.Write1( (byte)( mainClass.ServerOffset + NSCommand.NSCPing ) );
+                    ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCPing));
                     ez.SendPack();
                 } else {
-                    if( pingTimeout == 0 ) {
-                        MainClass.AddLog( "Ping timeout for " + this.User_Name + ", user disconnecting" );
-                        if( CurrentRoom != null ) CurrentRoom = null;
-                        mainClass.Users.Remove( this );
+                    if (pingTimeout == 0) {
+                        MainClass.AddLog("Ping timeout for " + this.User_Name + ", user disconnecting");
+                        if (CurrentRoom != null) CurrentRoom = null;
+                        mainClass.Users.Remove(this);
                         this.tcpClient.Close();
                         return;
                     } else {
-                        MainClass.AddLog( "Timeout " + pingTimeout + " for user " + this.User_Name );
+                        MainClass.AddLog("Timeout " + pingTimeout + " for user " + this.User_Name);
                         pingTimeout--;
                     }
                 }
@@ -847,13 +847,13 @@ namespace OpenSMO {
             try {
                 int a = tcpClient.Available;
             } catch {
-                MainClass.AddLog( "Socket closed." );
-                if( CurrentRoom != null ) CurrentRoom = null;
-                mainClass.Users.Remove( this );
+                MainClass.AddLog("Socket closed.");
+                if (CurrentRoom != null) CurrentRoom = null;
+                mainClass.Users.Remove(this);
                 return;
             }
 
-            if( tcpClient.Available > 0 ) {
+            if (tcpClient.Available > 0) {
                 try {
                     if (ez.ReadPack() == -1) return;
                 } catch {
@@ -869,7 +869,7 @@ namespace OpenSMO {
                     return;
                 }
 
-                switch( packetCommand ) {
+                switch (packetCommand) {
                     case NSCommand.NSCPing: this.NSCPing(); break;
                     case NSCommand.NSCPingR: this.NSCPingR(); break;
                     case NSCommand.NSCHello: this.NSCHello(); break;
@@ -883,17 +883,17 @@ namespace OpenSMO {
                     case NSCommand.NSCSU: this.NSCSU(); break;
                     case NSCommand.NSCCM: this.NSCCM(); break;
                     default:
-                        MainClass.AddLog( "Packet " + packetCommand.ToString() + " discarded!" );
+                        MainClass.AddLog("Packet " + packetCommand.ToString() + " discarded!");
                         ez.Discard();
                         break;
                 }
 
 
-                if( mainClass.Scripting.PacketHooks.ContainsKey( packetCommand ) ) {
-                    for( int i = 0; i < mainClass.Scripting.PacketHooks[ packetCommand ].Count; i++ ) {
+                if (mainClass.Scripting.PacketHooks.ContainsKey(packetCommand)) {
+                    for (int i = 0; i < mainClass.Scripting.PacketHooks[packetCommand].Count; i++) {
                         try {
-                            mainClass.Scripting.PacketHooks[ packetCommand ][ i ]( new HookInfo() { User = this, SubCommand = packetCommandSub } );
-                        } catch( Exception ex ) { mainClass.Scripting.HandleError( ex ); }
+                            mainClass.Scripting.PacketHooks[packetCommand][i](new HookInfo() { User = this, SubCommand = packetCommandSub });
+                        } catch (Exception ex) { mainClass.Scripting.HandleError(ex); }
                     }
                 }
             }
