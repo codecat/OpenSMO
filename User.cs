@@ -90,7 +90,7 @@ namespace OpenSMO {
         public bool Spectating = false;
         public bool Synced = false;
         public bool Playing = false;
-        public int[] Notes;
+        public short[] Notes;
         public int NoteCount {
             get {
                 if (Notes == null) return 0;
@@ -101,8 +101,8 @@ namespace OpenSMO {
             }
         }
         public int Score = 0;
-        public int Combo = 0;
-        public int MaxCombo = 0;
+        public short Combo = 0;
+        public short MaxCombo = 0;
         private NSGrades _Grade = 0;
         public NSGrades Grade {
             get { return _Grade; }
@@ -327,7 +327,7 @@ namespace OpenSMO {
                 CurrentRoom.Status = RoomStatus.Closed;
 
                 // Reset
-                Notes = new int[(int)NSNotes.NUM_NS_NOTES];
+                Notes = new short[(int)NSNotes.NUM_NS_NOTES];
                 Score = 0;
                 Combo = 0;
                 MaxCombo = 0;
@@ -364,7 +364,7 @@ namespace OpenSMO {
 
                 case 1: // Combo
                     foreach (User user in columnUsers)
-                        ez.Write2((short)user.Combo);
+                        ez.Write2(user.Combo);
                     break;
 
                 case 2: // Grade
@@ -430,6 +430,10 @@ namespace OpenSMO {
         public void NSCSMS() {
             NSScreen oldScreen = CurrentScreen;
             NSScreen newScreen = (NSScreen)ez.Read1();
+
+            if (newScreen == NSScreen.Room)
+                this.Playing = false;
+            MainClass.AddLog(this.User_Name + ": " + newScreen.ToString(), true);
 
             if (newScreen == NSScreen.Lobby) {
                 CurrentRoom = null;
@@ -499,7 +503,8 @@ namespace OpenSMO {
             if (Playing && !Spectating) {
                 NSNotes gsuCtr;
                 NSGrades gsuGrade;
-                int gsuScore, gsuCombo, gsuLife;
+                int gsuScore;
+                short gsuCombo, gsuLife;
                 double gsuOffset;
 
                 gsuCtr = (NSNotes)ez.Read1();
@@ -537,10 +542,38 @@ namespace OpenSMO {
             if (!RequiresAuthentication()) return;
 
             if (Playing && !Spectating) {
-                Playing = false;
-
-                if (CurrentRoom != null) // Required for SMOP v2
+                if (CurrentRoom != null) { // Required for SMOP v2
                     CurrentRoom.Reported = false;
+
+                    User[] origColumnUsers = GetUsersInRoom();
+                    User[] columnUsers = (from user in origColumnUsers where user.Playing orderby user.SMOScore descending select user).ToArray();
+
+                    // Post evaluation data
+                    ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCGON));
+                    ez.Write1((byte)columnUsers.Length);
+
+                    // Name index
+                    for (int i = 0; i < columnUsers.Length; i++) ez.Write1((byte)i);
+                    // Score
+                    for (int i = 0; i < columnUsers.Length; i++) ez.Write4(columnUsers[i].Score);
+                    // Grade
+                    for (int i = 0; i < columnUsers.Length; i++) ez.Write1((byte)columnUsers[i].Grade);
+                    // Difficulty
+                    for (int i = 0; i < columnUsers.Length; i++) ez.Write1((byte)columnUsers[i].GameDifficulty);
+
+                    // Flawless to Miss
+                    for (int j = 0; j < 6; j++)
+                        for (int i = 0; i < columnUsers.Length; i++) ez.Write2((short)columnUsers[i].Notes[(int)NSNotes.Flawless - j]);
+                    // Held
+                    for (int i = 0; i < columnUsers.Length; i++) ez.Write2((short)columnUsers[i].Notes[(int)NSNotes.Held]);
+                    // Max combo
+                    for (int i = 0; i < columnUsers.Length; i++) ez.Write2(columnUsers[i].MaxCombo);
+                    
+                    // Player settings
+                    for (int i = 0; i < columnUsers.Length; i++) ez.WriteNT(columnUsers[i].GamePlayerSettings);
+
+                    ez.SendPack();
+                }
 
                 if (NoteCount > 0) {
                     if (FullCombo) SendChatMessage(Func.ChatColor("00aa00") + "FULL COMBO!!");
@@ -695,7 +728,7 @@ namespace OpenSMO {
                 } else if (smoLoginCheck.Length == 0) {
                     if (bool.Parse(mainClass.ServerConfig.Get("Allow_Registration"))) {
                         Sql.Query("INSERT INTO main.users (\"Username\",\"Password\",\"Email\",\"Rank\",\"XP\") VALUES(\"" + Sql.AddSlashes(smoUsername) + "\",\"" + Sql.AddSlashes(smoPassword) + "\",\"\",0,0)");
-                        MainClass.AddLog(smoUsername + " is now registered with hash " + smoPassword);
+                        MainClass.AddLog(smoUsername + " is now registered");
 
                         User_Table = Sql.Query("SELECT * FROM \"users\" WHERE \"Username\"='" + Sql.AddSlashes(smoUsername) + "' AND \"Password\"='" + Sql.AddSlashes(smoPassword) + "'")[0];
                         User_ID = (int)User_Table["ID"];
@@ -718,7 +751,7 @@ namespace OpenSMO {
                     }
                 }
 
-                MainClass.AddLog(smoUsername + " tried logging in with hash " + smoPassword + " but failed");
+                MainClass.AddLog(smoUsername + " tried logging in but failed");
 
                 ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCSMOnline));
                 ez.Write2(1);
