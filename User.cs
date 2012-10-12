@@ -91,8 +91,10 @@ namespace OpenSMO
 
     public Ez ez;
 
+    public bool CanPlay = true;
     public bool Spectating = false;
     public bool Synced = false;
+    public bool SyncNeeded = false;
     public bool Playing = false;
     public int[] Notes;
     public int NoteCount
@@ -297,6 +299,9 @@ namespace OpenSMO
 
     public void SendToRoom()
     {
+      SyncNeeded = false;
+      CanPlay = true;
+
       if (CurrentRoom != null) {
         SendRoomList();
 
@@ -515,7 +520,7 @@ namespace OpenSMO
       CurrentRoom.AllPlaying = true;
       User[] checkSyncPlayers = GetUsersInRoom();
       foreach (User user in checkSyncPlayers) {
-        if (!user.Synced)
+        if (user.SyncNeeded && user.CanPlay && !user.Synced)
           CurrentRoom.AllPlaying = false;
       }
 
@@ -609,30 +614,38 @@ namespace OpenSMO
 
       switch (pickResponseStatus) {
         case 0: // Player has song
+          CanPlay = SyncNeeded = true;
           ez.Discard();
           return;
 
         case 1: // Player does not have song
+          CanPlay = SyncNeeded = false;
           mainClass.SendChatAll(NameFormat() + " does " + Func.ChatColor("aa0000") + "not" + Func.ChatColor("ffffff") + " have that song!", CurrentRoom);
           ez.Discard();
           return;
+      }
+
+      User[] pickUsers = GetUsersInRoom();
+
+      bool canStart = true;
+      string cantStartReason = "";
+
+      foreach (User user in pickUsers) {
+        if (user.CurrentScreen != NSScreen.Room) {
+          canStart = false;
+          cantStartReason = user.NameFormat() + " is not ready yet!";
+          break;
+        } else if (user.CanPlay) {
+          canStart = false;
+          cantStartReason = user.NameFormat() + " is unable to participate!";
+          break;
+        }
       }
 
       if (CurrentRoom.Free || CanChangeRoomSettings()) {
         if (CurrentRoom.CurrentSong.Name == pickName &&
             CurrentRoom.CurrentSong.Artist == pickArtist &&
             CurrentRoom.CurrentSong.SubTitle == pickAlbum) {
-          User[] pickUsers = GetUsersInRoom();
-
-          bool canStart = true;
-          string cantStartReason = "";
-
-          foreach (User user in pickUsers) {
-            if (user.CurrentScreen != NSScreen.Room) {
-              canStart = false;
-              cantStartReason = user.NameFormat() + " is not ready yet!";
-            }
-          }
 
           if (canStart) {
             foreach (User user in pickUsers) {
@@ -643,18 +656,6 @@ namespace OpenSMO
           } else
             mainClass.SendChatAll(cantStartReason, CurrentRoom);
         } else {
-          User[] pickUsers = GetUsersInRoom();
-
-          bool canStart = true;
-          string cantStartReason = "";
-
-          foreach (User user in pickUsers) {
-            if (user.CurrentScreen != NSScreen.Room) {
-              canStart = false;
-              cantStartReason = user.NameFormat() + " is not ready yet!";
-            }
-          }
-
           if (canStart) {
             Song newSong = new Song();
 
