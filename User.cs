@@ -52,6 +52,21 @@ namespace OpenSMO
             foreach (User user in lobbyUsers)
               user.SendRoomList();
           } else {
+            if (oldRoom.AllPlaying) {
+              bool shouldStart = true;
+              foreach (User user in users) {
+                if (!user.Synced) {
+                  shouldStart = false;
+                  break;
+                }
+              }
+
+              if (shouldStart) {
+                SendSongStartTo(users);
+                oldRoom.AllPlaying = false;
+              }
+            }
+
             mainClass.SendChatAll(NameFormat() + " left the room.", oldRoom, this);
 
             foreach (User user in users)
@@ -444,6 +459,17 @@ namespace OpenSMO
       ez.SendPack();
     }
 
+    public void SendSongStartTo(User[] checkSyncPlayers)
+    {
+      foreach (User user in checkSyncPlayers) {
+        user.Synced = false;
+        user.SongTime.Restart();
+
+        user.ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCGSR));
+        user.ez.SendPack();
+      }
+    }
+
     // Ping packet sent by client, generally not sent by client unless server requests so.
     public void NSCPing()
     {
@@ -529,14 +555,7 @@ namespace OpenSMO
         ez.SendPack();
 
         if (CurrentRoom.AllPlaying) {
-          foreach (User user in checkSyncPlayers) {
-            user.Synced = false;
-            user.SongTime.Restart();
-
-            user.ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCGSR));
-            user.ez.SendPack();
-          }
-
+          SendSongStartTo(checkSyncPlayers);
           CurrentRoom.AllPlaying = false;
         }
       }
