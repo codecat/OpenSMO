@@ -635,7 +635,7 @@ namespace OpenSMO
           canStart = false;
           cantStartReason = user.NameFormat() + " is not ready yet!";
           break;
-        } else if (user.CanPlay) {
+        } else if (!user.CanPlay) {
           canStart = false;
           cantStartReason = user.NameFormat() + " is unable to participate!";
           break;
@@ -741,7 +741,7 @@ namespace OpenSMO
         } else if (smoLoginCheck.Length == 0) {
           if (bool.Parse(mainClass.ServerConfig.Get("Allow_Registration"))) {
             Sql.Query("INSERT INTO main.users (\"Username\",\"Password\",\"Email\",\"Rank\",\"XP\") VALUES(\"" + Sql.AddSlashes(smoUsername) + "\",\"" + Sql.AddSlashes(smoPassword) + "\",\"\",0,0)");
-            MainClass.AddLog(smoUsername + " is now registered with hash " + smoPassword);
+            MainClass.AddLog(smoUsername + " is now registered");
 
             User_Table = Sql.Query("SELECT * FROM \"users\" WHERE \"Username\"='" + Sql.AddSlashes(smoUsername) + "' AND \"Password\"='" + Sql.AddSlashes(smoPassword) + "'")[0];
             User_ID = (int)User_Table["ID"];
@@ -764,7 +764,7 @@ namespace OpenSMO
           }
         }
 
-        MainClass.AddLog(smoUsername + " tried logging in with hash " + smoPassword + " but failed");
+        MainClass.AddLog(smoUsername + " tried logging in but failed");
 
         ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCSMOnline));
         ez.Write2(1);
