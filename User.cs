@@ -439,18 +439,21 @@ namespace OpenSMO
       ez.SendPack();
     }
 
+    // Ping packet sent by client, generally not sent by client unless server requests so.
     public void NSCPing()
     {
       ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCPingR));
       ez.Discard(); // Just to be sure.
     }
 
+    // Client sent a ping response.
     public void NSCPingR()
     {
       pingTimeout = 5;
       ez.Discard(); // Just to be sure.
     }
 
+    // Client handshakes with the server
     public void NSCHello()
     {
       User_Protocol = ez.Read1();
@@ -465,6 +468,7 @@ namespace OpenSMO
       ez.SendPack();
     }
 
+    // Client switches menu screen
     public void NSCSMS()
     {
       NSScreen oldScreen = CurrentScreen;
@@ -480,6 +484,7 @@ namespace OpenSMO
       CurrentScreen = newScreen;
     }
 
+    // Client requests to start the game.
     public void NSCGSR()
     {
       if (CurrentRoom == null) {
@@ -532,6 +537,7 @@ namespace OpenSMO
       }
     }
 
+    // User sends a game status update (game passes a step)
     public void NSCGSU()
     {
       if (!RequiresAuthentication()) return;
@@ -564,6 +570,7 @@ namespace OpenSMO
         ez.Discard();
     }
 
+    // Client exited game.
     public void NSCGON()
     {
       if (!RequiresAuthentication()) return;
@@ -584,6 +591,7 @@ namespace OpenSMO
       }
     }
 
+    // Client selects a song.
     public void NSCRSG()
     {
       if (CurrentRoom == null) {
@@ -678,12 +686,14 @@ namespace OpenSMO
       }
     }
 
+    // Client sent user options
     public void NSCUPOpts()
     {
       ez.Discard(); // This contains a string with user options, but we don't really care about that too much for now.
     }
 
     byte packetCommandSub = 0;
+    // Client sent SMO packet (note subpacket comments)
     public void NSCSMOnline()
     {
       packetCommandSub = ez.Read1();
@@ -815,11 +825,14 @@ namespace OpenSMO
       }
     }
 
+    // Client sent style update
     public void NSCSU()
     {
+      // We don't really care about this packet yet
       ez.Discard();
     }
 
+    // Client sent chat message
     public void NSCCM()
     {
       if (!RequiresAuthentication()) return;
