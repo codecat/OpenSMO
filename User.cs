@@ -629,8 +629,38 @@ namespace OpenSMO
       if (Playing && !Spectating) {
         Playing = false;
 
-        if (CurrentRoom != null) // Required for SMOP v2
+        if (CurrentRoom != null) { // Required for SMOP v2
           CurrentRoom.Reported = false;
+
+          User[] columnUsers = GetUsersInRoom();
+
+          // Post evaluation data
+          ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCGON));
+          ez.Write1((byte)columnUsers.Length);
+
+          // Name index
+          for (int i = 0; i < columnUsers.Length; i++) ez.Write1((byte)i);
+          // Score
+          for (int i = 0; i < columnUsers.Length; i++) ez.Write4(columnUsers[i].Score);
+          // Grade
+          for (int i = 0; i < columnUsers.Length; i++) ez.Write1((byte)columnUsers[i].Grade);
+          // Difficulty
+          for (int i = 0; i < columnUsers.Length; i++) ez.Write1((byte)columnUsers[i].GameDifficulty);
+
+          // Flawless to Miss
+          for (int j = 0; j < 6; j++) {
+            for (int i = 0; i < columnUsers.Length; i++) ez.Write2((short)columnUsers[i].Notes[(int)NSNotes.Flawless - j]);
+          }
+          // Held
+          for (int i = 0; i < columnUsers.Length; i++) ez.Write2((short)columnUsers[i].Notes[(int)NSNotes.Held]);
+          // Max combo
+          for (int i = 0; i < columnUsers.Length; i++) ez.Write2((short)columnUsers[i].MaxCombo);
+
+          // Player settings
+          for (int i = 0; i < columnUsers.Length; i++) ez.WriteNT(columnUsers[i].GamePlayerSettings);
+
+          ez.SendPack();
+        }
 
         if (NoteCount > 0) {
           if (FullCombo) SendChatMessage(Func.ChatColor("00aa00") + "FULL COMBO!!");
