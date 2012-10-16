@@ -10,6 +10,10 @@ namespace OpenSMO
   {
     public MainClass mainClass;
 
+    public bool Fixed = false;
+    public int[] FixedOperators;
+    public string FixedMotd;
+
     public string ID = "";
     public string Name;
     public string Description;
@@ -80,7 +84,7 @@ namespace OpenSMO
         SendStatsTimer = 0;
       }
 
-      if (UserCount == 0) {
+      if (UserCount == 0 && !Fixed) {
         MainClass.AddLog("Room '" + Name + "' removed.");
         mainClass.Rooms.Remove(this);
       }

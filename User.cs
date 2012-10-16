@@ -46,11 +46,13 @@ namespace OpenSMO
 
           User[] users = oldRoom.Users.ToArray();
           if (users.Length == 0) {
-            MainClass.AddLog("Removing room '" + oldRoom.Name + "'");
-            mainClass.Rooms.Remove(oldRoom);
+            if (!oldRoom.Fixed) {
+              MainClass.AddLog("Removing room '" + oldRoom.Name + "'");
+              mainClass.Rooms.Remove(oldRoom);
 
-            foreach (User user in lobbyUsers)
-              user.SendRoomList();
+              foreach (User user in lobbyUsers)
+                user.SendRoomList();
+            }
           } else {
             if (oldRoom.AllPlaying) {
               bool shouldStart = true;
@@ -85,9 +87,11 @@ namespace OpenSMO
                 mainClass.SendChatAll(newOwner.NameFormat() + " is now room owner.", newOwner.CurrentRoom);
               }
             } else {
-              MainClass.AddLog("Removing room '" + oldRoom.Name + "'");
-              mainClass.Rooms.Remove(oldRoom);
-              oldRoom = null;
+              if (!oldRoom.Fixed) {
+                MainClass.AddLog("Removing room '" + oldRoom.Name + "'");
+                mainClass.Rooms.Remove(oldRoom);
+                oldRoom = null;
+              }
             }
             CurrentRoomRights = RoomRights.Player;
           }
@@ -286,25 +290,25 @@ namespace OpenSMO
       } else {
         byte visibleRoomCount = 0;
         foreach (Room r in mainClass.Rooms) {
-          if (!r.Owner.ShadowBanned)
+          if (r.Owner == null || !r.Owner.ShadowBanned)
             visibleRoomCount++;
         }
         ez.Write1(visibleRoomCount);
 
         foreach (Room room in mainClass.Rooms) {
-          if (!room.Owner.ShadowBanned) {
+          if (room.Owner == null || !room.Owner.ShadowBanned) {
             ez.WriteNT(room.Name);
             ez.WriteNT(room.Description);
           }
         }
 
         foreach (Room room in mainClass.Rooms) {
-          if (!room.Owner.ShadowBanned)
+          if (room.Owner == null || !room.Owner.ShadowBanned)
             ez.Write1((byte)room.Status);
         }
 
         foreach (Room room in mainClass.Rooms) {
-          if (!room.Owner.ShadowBanned)
+          if (room.Owner == null || !room.Owner.ShadowBanned)
             ez.Write1((byte)(room.Password != "" ? 1 : 0));
         }
       }
@@ -332,6 +336,17 @@ namespace OpenSMO
           user.SendRoomPlayers();
 
         mainClass.SendChatAll(NameFormat() + Func.ChatColor("ffffff") + " joined the room.", CurrentRoom);
+
+        if (CurrentRoom.Fixed) {
+          if (CurrentRoom.FixedMotd != "") {
+            SendChatMessage(Func.ChatColor("00aa00") + CurrentRoom.FixedMotd);
+          }
+
+          if (CurrentRoom.FixedOperators.Contains(User_ID)) {
+            SendChatMessage(Func.ChatColor("0000aa") + "You are an operator in this fixed room.");
+            CurrentRoomRights = RoomRights.Operator;
+          }
+        }
       } else
         MainClass.AddLog("Not supported: Kicking from room. Fixme! User::SendToRoom", true);
     }
@@ -820,6 +835,7 @@ namespace OpenSMO
 
         foreach (Room room in mainClass.Rooms) {
           if (room.Name == joinRoomName && (room.Password == joinRoomPass || IsModerator())) {
+            CurrentRoomRights = RoomRights.Player;
             CurrentRoom = room;
             SendToRoom();
             break;

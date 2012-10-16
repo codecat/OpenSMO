@@ -98,6 +98,51 @@ namespace OpenSMO
       if (!Sql.Connected)
         AddLog("Please check your SQLite database.", true);
 
+      Sql.ReportErrors = false;
+      Hashtable[] fixedRooms = Sql.Query("SELECT * FROM fixedrooms;");
+      Sql.ReportErrors = true;
+
+      if (fixedRooms == null) {
+        AddLog("It appears there's no \"fixedrooms\" table, creating one now.");
+        Sql.Query(@"CREATE TABLE ""main"".""fixedrooms"" (
+          ""ID""  INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+          ""Name""  TEXT(255) NOT NULL,
+          ""Description""  TEXT(255),
+          ""Password""  TEXT(255),
+          ""Free""  INTEGER,
+          ""MOTD""  TEXT(255),
+          ""Operators""  TEXT(255));");
+      } else {
+        foreach (Hashtable room in fixedRooms) {
+          Room newRoom = new Room(this, null);
+          newRoom.Fixed = true;
+          newRoom.Name = room["Name"].ToString();
+          newRoom.Description = room["Description"].ToString();
+          newRoom.Password = room["Password"].ToString();
+          newRoom.Free = room["Free"].ToString() == "1";
+          newRoom.FixedMotd = room["MOTD"].ToString();
+
+          string[] strOps = room["Operators"].ToString().Split(',');
+          List<int> ops = new List<int>();
+          foreach (string op in strOps) {
+            if (op == "") {
+              continue;
+            }
+
+            int opID = 0;
+            if (int.TryParse(op, out opID)) {
+              ops.Add(opID);
+            } else {
+              AddLog("Invalid op ID '" + op + "'");
+            }
+          }
+          newRoom.FixedOperators = ops.ToArray();
+          Rooms.Add(newRoom);
+
+          AddLog("Added fixed room '" + newRoom.Name + "'");
+        }
+      }
+
       ReloadScripts();
 
       tcpListener = new TcpListener(IPAddress.Parse(ServerConfig.Get("Server_IP")), int.Parse(ServerConfig.Get("Server_Port")));
