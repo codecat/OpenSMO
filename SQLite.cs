@@ -74,8 +74,8 @@ namespace OpenSMO
         if (ReportErrors) {
           MainClass.AddLog("Query error: '" + ex.Message + "'", true);
           MainClass.AddLog("Query was: '" + qry + "'", true);
-          return null;
         }
+        return null;
       }
 
       List<Hashtable> ret = new List<Hashtable>();
