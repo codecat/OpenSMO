@@ -649,12 +649,17 @@ namespace OpenSMO
       bool canStart = true;
       string cantStartReason = "";
 
+      Song currentSong = CurrentRoom.CurrentSong;
+      bool isNewSong = currentSong.Artist != pickArtist ||
+        currentSong.Name != pickName ||
+        currentSong.SubTitle != pickAlbum;
+
       foreach (User user in pickUsers) {
         if (user.CurrentScreen != NSScreen.Room) {
           canStart = false;
           cantStartReason = user.NameFormat() + " is not ready yet!";
           break;
-        } else if (!user.CanPlay) {
+        } else if (!user.CanPlay && !isNewSong) {
           canStart = false;
           cantStartReason = user.NameFormat() + " is unable to participate!";
           break;
