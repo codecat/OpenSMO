@@ -510,6 +510,18 @@ namespace OpenSMO
 
         SendRoomList();
         SendRoomPlayers();
+      } else if (newScreen == NSScreen.Room) {
+        List<User> users = CurrentRoom.Users;
+        // find people waiting for synchronization
+        List<User> usersToSendPacketTo = new List<User>();
+        foreach (User user in users) {
+          if (user.SyncNeeded) {
+            usersToSendPacketTo.Add(user);
+          }
+        }
+
+        // send packet those people
+        SendSongStartTo(usersToSendPacketTo.ToArray());
       }
 
       CurrentScreen = newScreen;
