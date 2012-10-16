@@ -24,7 +24,7 @@ namespace OpenSMO
     {
       UseCommit = bool.Parse(MainClass.Instance.ServerConfig.Get("Database_UseCommit"));
 
-      conn = new SqliteConnection("Data Source=" + Filename + ";Version=" + Version.ToString() + ";New=False;Compress=" + Compress.ToString() + ";Journal Mode=Off;");
+      conn = new SqliteConnection("Data Source=" + Filename + ";Version=" + Version.ToString() + ";New=False;Compress=" + Compress.ToString() + ";Journal Mode=Off;UTF8Encoding=True;");
       try { conn.Open(); } catch (Exception ex) {
         MainClass.AddLog("Couldn't open SQLite database: " + ex.Message, true);
       }
