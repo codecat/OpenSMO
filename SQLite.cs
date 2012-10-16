@@ -15,6 +15,8 @@ namespace OpenSMO
     public static bool Compress;
     public static bool UseCommit;
 
+    public static bool ReportErrors = true;
+
     private static SqliteConnection conn;
     private static SqliteCommand cmd;
 
@@ -69,9 +71,11 @@ namespace OpenSMO
       cmd.CommandText = qry;
 
       try { reader = cmd.ExecuteReader(); } catch (Exception ex) {
-        MainClass.AddLog("Query error: '" + ex.Message + "'", true);
-        MainClass.AddLog("Query was: '" + qry + "'", true);
-        return null;
+        if (ReportErrors) {
+          MainClass.AddLog("Query error: '" + ex.Message + "'", true);
+          MainClass.AddLog("Query was: '" + qry + "'", true);
+          return null;
+        }
       }
 
       List<Hashtable> ret = new List<Hashtable>();
