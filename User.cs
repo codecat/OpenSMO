@@ -607,6 +607,9 @@ namespace OpenSMO
         NoteOffsetRaw = ez.ReadU2();
         gsuOffset = NoteOffsetRaw / 2000d - 16.384d;
 
+        if (User_Protocol == 2)
+            gsuCtr += 2;
+
         NoteHit = gsuCtr;
         NoteOffset = gsuOffset;
 
