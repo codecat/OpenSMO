@@ -644,11 +644,11 @@ namespace OpenSMO
 
           // Name index
           for (int i = 0; i < columnUsers.Length; i++){
-              for (int j = 0; j < origColumnUsers.Length; j++){
-                  if (origColumnUsers[j] == columnUsers[i])
-                      ez.Write1((byte)j);
-                      break;
-               }
+            for (int j = 0; j < origColumnUsers.Length; j++){
+              if (origColumnUsers[j] == columnUsers[i])
+                ez.Write1((byte)j);
+                break;
+            }
           }
           // Score
           for (int i = 0; i < columnUsers.Length; i++) ez.Write4(columnUsers[i].Score);
