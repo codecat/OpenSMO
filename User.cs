@@ -635,14 +635,21 @@ namespace OpenSMO
         if (CurrentRoom != null) { // Required for SMOP v2
           CurrentRoom.Reported = false;
 
-          User[] columnUsers = GetUsersInRoom();
+          User[] origColumnUsers = GetUsersInRoom();
+          User[] columnUsers = (from user in origColumnUsers where user.Playing orderby user.SMOScore descending select user).ToArray();
 
           // Post evaluation data
           ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCGON));
           ez.Write1((byte)columnUsers.Length);
 
           // Name index
-          for (int i = 0; i < columnUsers.Length; i++) ez.Write1((byte)i);
+          for (int i = 0; i < columnUsers.Length; i++){
+            for (int j = 0; j < origColumnUsers.Length; j++){
+              if (origColumnUsers[j] == columnUsers[i])
+                ez.Write1((byte)j);
+                break;
+            }
+          }
           // Score
           for (int i = 0; i < columnUsers.Length; i++) ez.Write4(columnUsers[i].Score);
           // Grade
