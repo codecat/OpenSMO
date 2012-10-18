@@ -647,8 +647,9 @@ namespace OpenSMO
               for (int j = 0; j < origColumnUsers.Length; j++){
                   if (origColumnUsers[j] == columnUsers[i])
                       ez.Write1((byte)j);
-              }
-         }
+                      break;
+               }
+          }
           // Score
           for (int i = 0; i < columnUsers.Length; i++) ez.Write4(columnUsers[i].Score);
           // Grade
