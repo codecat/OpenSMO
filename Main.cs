@@ -257,16 +257,29 @@ namespace OpenSMO
 
           try {
             string line = reader.ReadLine();
+
+            while (reader.ReadLine() != "") { }
+
             if (line != null) {
-              string request = line.Split(' ')[1].Substring(1);
+              string[] requestParts = line.Split(' ')[1].Substring(1).Split(new char[] { '?' }, 2);
+              string request = requestParts[0];
+              string data = requestParts.Length == 2 ? Uri.UnescapeDataString(requestParts[1]).Replace('+', ' ') : "";
               string[] parse = request.Split('/');
+
+              string roomID = "";
+              Room r = null;
 
               string responseBuffer = "";
               switch (parse[0]) {
                 case "l":
+                  if (IP != ServerConfig.Get("RTS_Trusted")) {
+                    responseBuffer = "[]";
+                    break;
+                  }
+
                   responseBuffer = "[";
                   foreach (Room room in Rooms) {
-                    if (!room.Secret && !room.Owner.ShadowBanned) {
+                    if (!room.Secret && (room.Owner != null && !room.Owner.ShadowBanned)) {
                       responseBuffer += "[";
                       responseBuffer += "\"" + room.ID + "\",";
                       responseBuffer += "\"" + JsonSafe(room.Name) + "\",";
@@ -286,8 +299,8 @@ namespace OpenSMO
                   break;
 
                 case "g":
-                  string roomID = parse[1];
-                  Room r = null;
+                  roomID = parse[1];
+                  r = null;
                   foreach (Room room in Rooms) {
                     if (room.ID == roomID) {
                       r = room;
@@ -326,6 +339,42 @@ namespace OpenSMO
                       responseBuffer += "]";
                     }
                   }
+                  break;
+
+                case "c":
+                  if (IP != ServerConfig.Get("RTS_Trusted")) {
+                    responseBuffer = "[]";
+                    break;
+                  }
+
+                  roomID = parse[1];
+
+                  Hashtable[] userRes = Sql.Query("SELECT * FROM \"users\" WHERE \"Username\"='" + Sql.AddSlashes(parse[2]) + "'");
+                  if (userRes.Length != 1) {
+                    break;
+                  }
+
+                  Hashtable u = userRes[0];
+
+                  r = null;
+                  foreach (Room room in Rooms) {
+                    if (room.ID == roomID) {
+                      r = room;
+                      break;
+                    }
+                  }
+
+                  if (r != null && !r.Secret) {
+                    string strName = u["Username"].ToString();
+
+                    for (int i = 0; i < Scripting.WebFormatHooks.Count; i++) {
+                      strName = Scripting.WebFormatHooks[i](u, strName);
+                    }
+
+                    SendChatAll(strName + ": " + data, r);
+                  }
+
+                  responseBuffer = "OK";
                   break;
               }
 

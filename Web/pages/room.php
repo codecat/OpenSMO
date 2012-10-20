@@ -22,6 +22,7 @@ if(!isset($_GET['rid']))
 	<div class="blocktitle">Chat</div>
 	<div class="blockcontent">
 		<div class="chat" id="chatDiv"></div>
+    <p><input type="text" id="chatInput" style="width:100%;" /></p>
 	</div>
 </div>
 <script>

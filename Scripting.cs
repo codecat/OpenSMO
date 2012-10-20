@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using IronPython.Hosting;
 using Microsoft.Scripting.Hosting;
+using System.Collections;
 
 namespace OpenSMO
 {
@@ -24,6 +25,7 @@ namespace OpenSMO
     public delegate bool ChatHookCall(User user, string message);
     public delegate bool ChatCommandHookCall(User user, string args);
     public delegate string NameFormatHookCall(User user, string current);
+    public delegate string WebFormatHookCall(Hashtable user, string current);
     public delegate int PlayerXPHookCall(User user, int current);
 
     public Dictionary<NSCommand, List<PacketHookCall>> PacketHooks;
@@ -31,6 +33,7 @@ namespace OpenSMO
     public List<ChatHookCall> ChatHooks;
     public Dictionary<string, List<ChatCommandHookCall>> ChatCommandHooks;
     public List<NameFormatHookCall> NameFormatHooks;
+    public List<WebFormatHookCall> WebFormatHooks;
     public List<PlayerXPHookCall> PlayerXPHooks;
 
     public Scripting()
@@ -44,6 +47,7 @@ namespace OpenSMO
       ChatHooks = new List<ChatHookCall>();
       ChatCommandHooks = new Dictionary<string, List<ChatCommandHookCall>>();
       NameFormatHooks = new List<NameFormatHookCall>();
+      WebFormatHooks = new List<WebFormatHookCall>();
       PlayerXPHooks = new List<PlayerXPHookCall>();
     }
 
@@ -81,6 +85,12 @@ namespace OpenSMO
     {
       if (priority) NameFormatHooks.Insert(0, call);
       else NameFormatHooks.Add(call);
+    }
+
+    public void HookWebFormat(WebFormatHookCall call, bool priority = false)
+    {
+      if (priority) WebFormatHooks.Insert(0, call);
+      else WebFormatHooks.Add(call);
     }
 
     public void HookPlayerXP(PlayerXPHookCall call, bool priority = false)
