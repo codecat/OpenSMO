@@ -335,6 +335,7 @@ namespace OpenSMO
         foreach (User user in mainClass.Users)
           user.SendRoomPlayers();
 
+        CurrentRoomRights = RoomRights.Player;
         mainClass.SendChatAll(NameFormat() + Func.ChatColor("ffffff") + " joined the room.", CurrentRoom);
 
         if (CurrentRoom.Fixed) {
@@ -636,6 +637,9 @@ namespace OpenSMO
           CurrentRoom.Reported = false;
 
           User[] origColumnUsers = GetUsersInRoom();
+          if (origColumnUsers.Length == 0) {
+            return;
+          }
           User[] columnUsers = (from user in origColumnUsers where user.Playing orderby user.SMOScore descending select user).ToArray();
 
           // Post evaluation data
@@ -832,6 +836,16 @@ namespace OpenSMO
           return;
         } else if (smoLoginCheck.Length == 0) {
           if (bool.Parse(mainClass.ServerConfig.Get("Allow_Registration"))) {
+            smoUsername = smoUsername.Trim();
+
+            if (smoUsername.Trim() == "") {
+              ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCSMOnline));
+              ez.Write2(1);
+              ez.WriteNT("Registration failed! Invalid username.");
+              ez.SendPack();
+              return;
+            }
+
             Sql.Query("INSERT INTO main.users (\"Username\",\"Password\",\"Email\",\"Rank\",\"XP\") VALUES(\"" + Sql.AddSlashes(smoUsername) + "\",\"" + Sql.AddSlashes(smoPassword) + "\",\"\",0,0)");
             MainClass.AddLog(smoUsername + " is now registered");
 
