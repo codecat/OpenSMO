@@ -27,7 +27,7 @@ namespace OpenSMO
     public Config ServerConfig;
     public Scripting Scripting;
 
-    public static int Build = 8;
+    public static int Build = 6;
     public static MainClass Instance;
     public static DateTime StartTime;
 
@@ -90,58 +90,18 @@ namespace OpenSMO
       if (ServerConfig.Contains("Server_Version")) ServerVersion = (byte)int.Parse(ServerConfig.Get("Server_Version"));
       if (ServerConfig.Contains("Server_MaxPlayers")) ServerMaxPlayers = (byte)int.Parse(ServerConfig.Get("Server_MaxPlayers"));
 
-      Sql.Filename = ServerConfig.Get("Database_File");
-      Sql.Version = int.Parse(ServerConfig.Get("Database_Version"));
-      Sql.Compress = bool.Parse(ServerConfig.Get("Database_Compressed"));
-      Sql.Connect();
+     // MySql.Filename = ServerConfig.Get("Database_File");
+     // MySql.Version = int.Parse(ServerConfig.Get("Database_Version"));
+     // MySql.Compress = bool.Parse(ServerConfig.Get("Database_Compressed"));
+      //MySql.Initialize();
+      MySql.Host = ServerConfig.Get("MySql_Host");
+      MySql.User = ServerConfig.Get("MySql_User");
+      MySql.Password = ServerConfig.Get("MySql_Password");
+      MySql.Database = ServerConfig.Get("MySql_Database");
 
-      if (!Sql.Connected)
-        AddLog("Please check your SQLite database.", true);
 
-      Sql.ReportErrors = false;
-      Hashtable[] fixedRooms = Sql.Query("SELECT * FROM fixedrooms;");
-      Sql.ReportErrors = true;
-
-      if (fixedRooms == null) {
-        AddLog("It appears there's no \"fixedrooms\" table, creating one now.");
-        Sql.Query(@"CREATE TABLE ""main"".""fixedrooms"" (
-          ""ID""  INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-          ""Name""  TEXT(255) NOT NULL,
-          ""Description""  TEXT(255),
-          ""Password""  TEXT(255),
-          ""Free""  INTEGER,
-          ""MOTD""  TEXT(255),
-          ""Operators""  TEXT(255));");
-      } else {
-        foreach (Hashtable room in fixedRooms) {
-          Room newRoom = new Room(this, null);
-          newRoom.Fixed = true;
-          newRoom.Name = room["Name"].ToString();
-          newRoom.Description = room["Description"].ToString();
-          newRoom.Password = room["Password"].ToString();
-          newRoom.Free = room["Free"].ToString() == "1";
-          newRoom.FixedMotd = room["MOTD"].ToString();
-
-          string[] strOps = room["Operators"].ToString().Split(',');
-          List<int> ops = new List<int>();
-          foreach (string op in strOps) {
-            if (op == "") {
-              continue;
-            }
-
-            int opID = 0;
-            if (int.TryParse(op, out opID)) {
-              ops.Add(opID);
-            } else {
-              AddLog("Invalid op ID '" + op + "'");
-            }
-          }
-          newRoom.FixedOperators = ops.ToArray();
-          Rooms.Add(newRoom);
-
-          AddLog("Added fixed room '" + newRoom.Name + "'");
-        }
-      }
+      //if (!Sql.Connected)
+        //AddLog("Please check your SQLite database.", true);
 
       ReloadScripts();
 
@@ -205,7 +165,7 @@ namespace OpenSMO
     public void UserThread()
     {
       while (true) {
-        Sql.Update();
+        //Sql.Update();
 
         try {
           for (int i = 0; i < Scripting.UpdateHooks.Count; i++) {
@@ -349,7 +309,7 @@ namespace OpenSMO
 
                   roomID = parse[1];
 
-                  Hashtable[] userRes = Sql.Query("SELECT * FROM \"users\" WHERE \"Username\"='" + Sql.AddSlashes(parse[2]) + "'");
+                  Hashtable[] userRes = MySql.Query("SELECT * FROM \"users\" WHERE \"Username\"='" + MySql.AddSlashes(parse[2]) + "'");
                   if (userRes.Length != 1) {
                     break;
                   }
