@@ -9,7 +9,7 @@ namespace OpenSMO {
         public static Hashtable GetSong(string Name, string Artist, string SubTitle) {
             Hashtable[] resCheck = MySql.Query("SELECT * FROM songs WHERE Name='" + Name + "' " +
                                              "AND Artist='" + Artist + "' " +
-                                             "AND SubTitle\='" + SubTitle + "'");
+                                             "AND SubTitle='" + SubTitle + "'");
 
             if (resCheck == null) return null;
             if (resCheck.Length == 1)
