@@ -846,7 +846,7 @@ namespace OpenSMO
               return;
             }
 
-            MySql.Query("INSERT INTO main.users (Username,Password,Email,Rank,XP) VALUES(\"" + MySql.AddSlashes(smoUsername) + "\",\"" + MySql.AddSlashes(smoPassword) + "\",\"\",0,0)");
+            MySql.Query("INSERT INTO users (Username,Password,Email,Rank,XP) VALUES(\"" + MySql.AddSlashes(smoUsername) + "\",\"" + MySql.AddSlashes(smoPassword) + "\",\"\",0,0)");
             MainClass.AddLog(smoUsername + " is now registered");
 
             User_Table = MySql.Query("SELECT * FROM users WHERE Username='" + MySql.AddSlashes(smoUsername) + "' AND Password='" + MySql.AddSlashes(smoPassword) + "'")[0];

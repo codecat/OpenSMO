@@ -7,7 +7,7 @@ using System.Text;
 namespace OpenSMO {
     public static class Data {
         public static Hashtable GetSong(string Name, string Artist, string SubTitle) {
-            Hashtable[] resCheck = MySql.Query("SELECT * FROM main.songs WHERE Name='" + Name + "' " +
+            Hashtable[] resCheck = MySql.Query("SELECT * FROM songs WHERE Name='" + Name + "' " +
                                              "AND Artist='" + Artist + "' " +
                                              "AND SubTitle\='" + SubTitle + "'");
 
@@ -44,14 +44,14 @@ namespace OpenSMO {
             }
 
             if (song == null) {
-                MySql.Query("INSERT INTO main.songs (Name,Artist,SubTitle) VALUES(" +
+                MySql.Query("INSERT INTO songs (Name,Artist,SubTitle) VALUES(" +
                                                           "'" + Name + "'," +
                                                           "'" + Artist + "'," +
                                                           "'" + SubTitle + "')");
 
-                return MySql.Query("SELECT * FROM main.songs ORDER BY ID DESC LIMIT 0,1")[0];
+                return MySql.Query("SELECT * FROM songs ORDER BY ID DESC LIMIT 0,1")[0];
             } else if (Start) {
-                MySql.Query("UPDATE main.songs SET Played=Played+1 WHERE ID=" + song["ID"].ToString());
+                MySql.Query("UPDATE songs SET Played=Played+1 WHERE ID=" + song["ID"].ToString());
                 user.CurrentRoom.Reported = true;
             }
 
@@ -60,12 +60,12 @@ namespace OpenSMO {
 
         public static string BanUser(User user, int originID) {
             string IP = user.tcpClient.Client.RemoteEndPoint.ToString().Split(':')[0];
-            MySql.Query("INSERT INTO main.bans (IP,From) VALUES(\"" + IP + "\"," + originID + ")");
+            MySql.Query("INSERT INTO bans (IP,From) VALUES(\"" + IP + "\"," + originID + ")");
             return IP;
         }
 
         public static bool IsBanned(string IP) {
-            Hashtable[] res = MySql.Query("SELECT * FROM main.bans WHERE IP = \"" + MySql.AddSlashes(IP) + "\"");
+            Hashtable[] res = MySql.Query("SELECT * FROM bans WHERE IP = \"" + MySql.AddSlashes(IP) + "\"");
             return res.Length != 0;
         }
 
@@ -91,7 +91,7 @@ namespace OpenSMO {
                 if (!user.ShadowBanned) {
                     double songTime = user.SongTime.Elapsed.TotalSeconds;
                     if (songTime > (int)song["Time"]) {
-                        MySql.Query("UPDATE main.songs SET Time=" + songTime.ToString().Replace(',', '.') + " WHERE ID=" + song["ID"]);
+                        MySql.Query("UPDATE songs SET Time=" + songTime.ToString().Replace(',', '.') + " WHERE ID=" + song["ID"]);
                     }
                 }
 
@@ -99,7 +99,7 @@ namespace OpenSMO {
 
                 // Big-ass query right there...
                 if (!user.ShadowBanned) {
-                    MySql.Query("INSERT INTO main.stats (User,PlayerSettings,Song,Feet,Difficulty,Grade,Score,MaxCombo," +
+                    MySql.Query("INSERT INTO stats (User,PlayerSettings,Song,Feet,Difficulty,Grade,Score,MaxCombo," +
                         "Note_0,Note_1,Note_Mine,Note_Miss,Note_Barely,Note_Good,Note_Great,Note_Perfect,Note_Flawless,Note_NG,Note_Held) VALUES(" +
                         user.User_Table["ID"].ToString() + ",'" + playerSettings + "'," + songID.ToString() + "," + user.GameFeet.ToString() + "," + ((int)user.GameDifficulty).ToString() + "," + ((int)user.Grade).ToString() + "," + user.Score.ToString() + "," + user.MaxCombo.ToString() + "," +
                         user.Notes[0].ToString() + "," + user.Notes[1].ToString() + "," + user.Notes[2].ToString() + "," + user.Notes[3].ToString() + "," + user.Notes[4].ToString() + "," + user.Notes[5].ToString() + "," + user.Notes[6].ToString() + "," + user.Notes[7].ToString() + "," + user.Notes[8].ToString() + "," + user.Notes[9].ToString() + "," + user.Notes[10].ToString() + ")");
