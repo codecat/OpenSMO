@@ -31,6 +31,7 @@ namespace OpenSMO
     public string User_Game = "";
 
     private Room _CurrentRoom = null;
+    public int id = 0;
     public Room CurrentRoom
     {
       get { return _CurrentRoom; }
@@ -46,29 +47,12 @@ namespace OpenSMO
 
           User[] users = oldRoom.Users.ToArray();
           if (users.Length == 0) {
-            if (!oldRoom.Fixed) {
-              MainClass.AddLog("Removing room '" + oldRoom.Name + "'");
-              mainClass.Rooms.Remove(oldRoom);
+            MainClass.AddLog("Removing room '" + oldRoom.Name + "'");
+            mainClass.Rooms.Remove(oldRoom);
 
-              foreach (User user in lobbyUsers)
-                user.SendRoomList();
-            }
+            foreach (User user in lobbyUsers)
+              user.SendRoomList();
           } else {
-            if (oldRoom.AllPlaying) {
-              bool shouldStart = true;
-              foreach (User user in users) {
-                if (!user.Synced) {
-                  shouldStart = false;
-                  break;
-                }
-              }
-
-              if (shouldStart) {
-                SendSongStartTo(users);
-                oldRoom.AllPlaying = false;
-              }
-            }
-
             mainClass.SendChatAll(NameFormat() + " left the room.", oldRoom, this);
 
             foreach (User user in users)
@@ -87,11 +71,9 @@ namespace OpenSMO
                 mainClass.SendChatAll(newOwner.NameFormat() + " is now room owner.", newOwner.CurrentRoom);
               }
             } else {
-              if (!oldRoom.Fixed) {
-                MainClass.AddLog("Removing room '" + oldRoom.Name + "'");
-                mainClass.Rooms.Remove(oldRoom);
-                oldRoom = null;
-              }
+              MainClass.AddLog("Removing room '" + oldRoom.Name + "'");
+              mainClass.Rooms.Remove(oldRoom);
+              oldRoom = null;
             }
             CurrentRoomRights = RoomRights.Player;
           }
@@ -110,10 +92,8 @@ namespace OpenSMO
 
     public Ez ez;
 
-    public bool CanPlay = true;
     public bool Spectating = false;
     public bool Synced = false;
-    public bool SyncNeeded = false;
     public bool Playing = false;
     public int[] Notes;
     public int NoteCount
@@ -127,6 +107,7 @@ namespace OpenSMO
         return ret;
       }
     }
+    
     public int Score = 0;
     public int Combo = 0;
     public int MaxCombo = 0;
@@ -290,25 +271,25 @@ namespace OpenSMO
       } else {
         byte visibleRoomCount = 0;
         foreach (Room r in mainClass.Rooms) {
-          if (r.Owner == null || !r.Owner.ShadowBanned)
+          if (!r.Owner.ShadowBanned)
             visibleRoomCount++;
         }
         ez.Write1(visibleRoomCount);
 
         foreach (Room room in mainClass.Rooms) {
-          if (room.Owner == null || !room.Owner.ShadowBanned) {
+          if (!room.Owner.ShadowBanned) {
             ez.WriteNT(room.Name);
             ez.WriteNT(room.Description);
           }
         }
 
         foreach (Room room in mainClass.Rooms) {
-          if (room.Owner == null || !room.Owner.ShadowBanned)
+          if (!room.Owner.ShadowBanned)
             ez.Write1((byte)room.Status);
         }
 
         foreach (Room room in mainClass.Rooms) {
-          if (room.Owner == null || !room.Owner.ShadowBanned)
+          if (!room.Owner.ShadowBanned)
             ez.Write1((byte)(room.Password != "" ? 1 : 0));
         }
       }
@@ -318,9 +299,6 @@ namespace OpenSMO
 
     public void SendToRoom()
     {
-      SyncNeeded = false;
-      CanPlay = true;
-
       if (CurrentRoom != null) {
         SendRoomList();
 
@@ -335,19 +313,7 @@ namespace OpenSMO
         foreach (User user in mainClass.Users)
           user.SendRoomPlayers();
 
-        CurrentRoomRights = RoomRights.Player;
         mainClass.SendChatAll(NameFormat() + Func.ChatColor("ffffff") + " joined the room.", CurrentRoom);
-
-        if (CurrentRoom.Fixed) {
-          if (CurrentRoom.FixedMotd != "") {
-            SendChatMessage(Func.ChatColor("00aa00") + CurrentRoom.FixedMotd);
-          }
-
-          if (CurrentRoom.FixedOperators.Contains(User_ID)) {
-            SendChatMessage(Func.ChatColor("0000aa") + "You are an operator in this fixed room.");
-            CurrentRoomRights = RoomRights.Operator;
-          }
-        }
       } else
         MainClass.AddLog("Not supported: Kicking from room. Fixme! User::SendToRoom", true);
     }
@@ -475,32 +441,18 @@ namespace OpenSMO
       ez.SendPack();
     }
 
-    public void SendSongStartTo(User[] checkSyncPlayers)
-    {
-      foreach (User user in checkSyncPlayers) {
-        user.Synced = false;
-        user.SongTime.Restart();
-
-        user.ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCGSR));
-        user.ez.SendPack();
-      }
-    }
-
-    // Ping packet sent by client, generally not sent by client unless server requests so.
     public void NSCPing()
     {
       ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCPingR));
       ez.Discard(); // Just to be sure.
     }
 
-    // Client sent a ping response.
     public void NSCPingR()
     {
       pingTimeout = 5;
       ez.Discard(); // Just to be sure.
     }
 
-    // Client handshakes with the server
     public void NSCHello()
     {
       User_Protocol = ez.Read1();
@@ -515,7 +467,6 @@ namespace OpenSMO
       ez.SendPack();
     }
 
-    // Client switches menu screen
     public void NSCSMS()
     {
       NSScreen oldScreen = CurrentScreen;
@@ -526,24 +477,11 @@ namespace OpenSMO
 
         SendRoomList();
         SendRoomPlayers();
-      } else if (newScreen == NSScreen.Room) {
-        List<User> users = CurrentRoom.Users;
-        // find people waiting for synchronization
-        List<User> usersToSendPacketTo = new List<User>();
-        foreach (User user in users) {
-          if (user.SyncNeeded) {
-            usersToSendPacketTo.Add(user);
-          }
-        }
-
-        // send packet those people
-        SendSongStartTo(usersToSendPacketTo.ToArray());
       }
 
       CurrentScreen = newScreen;
     }
 
-    // Client requests to start the game.
     public void NSCGSR()
     {
       if (CurrentRoom == null) {
@@ -574,7 +512,7 @@ namespace OpenSMO
       CurrentRoom.AllPlaying = true;
       User[] checkSyncPlayers = GetUsersInRoom();
       foreach (User user in checkSyncPlayers) {
-        if (user.SyncNeeded && user.CanPlay && !user.Synced)
+        if (!user.Synced)
           CurrentRoom.AllPlaying = false;
       }
 
@@ -583,13 +521,19 @@ namespace OpenSMO
         ez.SendPack();
 
         if (CurrentRoom.AllPlaying) {
-          SendSongStartTo(checkSyncPlayers);
+          foreach (User user in checkSyncPlayers) {
+            user.Synced = false;
+            user.SongTime.Restart();
+
+            user.ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCGSR));
+            user.ez.SendPack();
+          }
+
           CurrentRoom.AllPlaying = false;
         }
       }
     }
 
-    // User sends a game status update (game passes a step)
     public void NSCGSU()
     {
       if (!RequiresAuthentication()) return;
@@ -625,57 +569,53 @@ namespace OpenSMO
         ez.Discard();
     }
 
-    // Client exited game.
     public void NSCGON()
     {
       if (!RequiresAuthentication()) return;
 
-      if (Playing && !Spectating) {
-        Playing = false;
+      if (Playing && !Spectating)
+      {
+          if (CurrentRoom != null)
+          { // Required for SMOP v2
+              CurrentRoom.Reported = false;
 
-        if (CurrentRoom != null) { // Required for SMOP v2
-          CurrentRoom.Reported = false;
+              User[] origColumnUsers = GetUsersInRoom();
+              User[] columnUsers = (from user in origColumnUsers where user.Playing orderby user.SMOScore descending select user).ToArray();
 
-          User[] origColumnUsers = GetUsersInRoom();
-          if (origColumnUsers.Length == 0) {
-            return;
-          }
-          User[] columnUsers = (from user in origColumnUsers where user.Playing orderby user.SMOScore descending select user).ToArray();
+              ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCGON));
+              ez.Write1((byte)columnUsers.Length);
 
-          // Post evaluation data
-          ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCGON));
-          ez.Write1((byte)columnUsers.Length);
-
-          // Name index
-          for (int i = 0; i < columnUsers.Length; i++){
-            for (int j = 0; j < origColumnUsers.Length; j++){
-              if (origColumnUsers[j] == columnUsers[i]) {
-                ez.Write1((byte)j);
-                break;
+              // Name index
+             for (int i = 0; i < columnUsers.Length; i++) 
+                 {
+                 for (int j = 0; j < origColumnUsers.Length; j++)
+                 {
+                     if (origColumnUsers[j] == columnUsers[i])
+                                     ez.Write1((byte)j);
+                 }
               }
-            }
+              // Name index
+//              for (int i = 0; i < columnUsers.Length; i++) { for (int j = 0; j < origColumnUsers.Length; j++) { if (origColumnUsers[j] == columnUsers[i]) { ez.Write1((byte)id); }
+              // Score
+              for (int i = 0; i < columnUsers.Length; i++) ez.Write4(columnUsers[i].Score);
+              // Grade
+              for (int i = 0; i < columnUsers.Length; i++) ez.Write1((byte)columnUsers[i].Grade);
+              // Difficulty
+              for (int i = 0; i < columnUsers.Length; i++) ez.Write1((byte)columnUsers[i].GameDifficulty);
+
+              // Flawless to Miss
+              for (int j = 0; j < 6; j++)
+                  for (int i = 0; i < columnUsers.Length; i++) ez.Write2((short)columnUsers[i].Notes[(int)NSNotes.Flawless - j]);
+              // Held
+              for (int i = 0; i < columnUsers.Length; i++) ez.Write2((short)columnUsers[i].Notes[(int)NSNotes.Held]);
+              // Max combo
+              for (int i = 0; i < columnUsers.Length; i++) ez.Write2((short)columnUsers[i].MaxCombo);
+
+              // Player settings
+              for (int i = 0; i < columnUsers.Length; i++) ez.WriteNT(columnUsers[i].GamePlayerSettings);
+
+              ez.SendPack();
           }
-          // Score
-          for (int i = 0; i < columnUsers.Length; i++) ez.Write4(columnUsers[i].Score);
-          // Grade
-          for (int i = 0; i < columnUsers.Length; i++) ez.Write1((byte)columnUsers[i].Grade);
-          // Difficulty
-          for (int i = 0; i < columnUsers.Length; i++) ez.Write1((byte)columnUsers[i].GameDifficulty);
-
-          // Flawless to Miss
-          for (int j = 0; j < 6; j++) {
-            for (int i = 0; i < columnUsers.Length; i++) ez.Write2((short)columnUsers[i].Notes[(int)NSNotes.Flawless - j]);
-          }
-          // Held
-          for (int i = 0; i < columnUsers.Length; i++) ez.Write2((short)columnUsers[i].Notes[(int)NSNotes.Held]);
-          // Max combo
-          for (int i = 0; i < columnUsers.Length; i++) ez.Write2((short)columnUsers[i].MaxCombo);
-
-          // Player settings
-          for (int i = 0; i < columnUsers.Length; i++) ez.WriteNT(columnUsers[i].GamePlayerSettings);
-
-          ez.SendPack();
-        }
 
         if (NoteCount > 0) {
           if (FullCombo) SendChatMessage(Func.ChatColor("00aa00") + "FULL COMBO!!");
@@ -687,7 +627,6 @@ namespace OpenSMO
       }
     }
 
-    // Client selects a song.
     public void NSCRSG()
     {
       if (CurrentRoom == null) {
@@ -705,43 +644,30 @@ namespace OpenSMO
 
       switch (pickResponseStatus) {
         case 0: // Player has song
-          CanPlay = SyncNeeded = true;
           ez.Discard();
           return;
 
         case 1: // Player does not have song
-          CanPlay = SyncNeeded = false;
           mainClass.SendChatAll(NameFormat() + " does " + Func.ChatColor("aa0000") + "not" + Func.ChatColor("ffffff") + " have that song!", CurrentRoom);
           ez.Discard();
           return;
-      }
-
-      User[] pickUsers = GetUsersInRoom();
-
-      bool canStart = true;
-      string cantStartReason = "";
-
-      Song currentSong = CurrentRoom.CurrentSong;
-      bool isNewSong = currentSong.Artist != pickArtist ||
-        currentSong.Name != pickName ||
-        currentSong.SubTitle != pickAlbum;
-
-      foreach (User user in pickUsers) {
-        if (user.CurrentScreen != NSScreen.Room) {
-          canStart = false;
-          cantStartReason = user.NameFormat() + " is not ready yet!";
-          break;
-        } else if (!user.CanPlay && !isNewSong) {
-          canStart = false;
-          cantStartReason = user.NameFormat() + " is unable to participate!";
-          break;
-        }
       }
 
       if (CurrentRoom.Free || CanChangeRoomSettings()) {
         if (CurrentRoom.CurrentSong.Name == pickName &&
             CurrentRoom.CurrentSong.Artist == pickArtist &&
             CurrentRoom.CurrentSong.SubTitle == pickAlbum) {
+          User[] pickUsers = GetUsersInRoom();
+
+          bool canStart = true;
+          string cantStartReason = "";
+
+          foreach (User user in pickUsers) {
+            if (user.CurrentScreen != NSScreen.Room) {
+              canStart = false;
+              cantStartReason = user.NameFormat() + " is not ready yet!";
+            }
+          }
 
           if (canStart) {
             foreach (User user in pickUsers) {
@@ -752,6 +678,18 @@ namespace OpenSMO
           } else
             mainClass.SendChatAll(cantStartReason, CurrentRoom);
         } else {
+          User[] pickUsers = GetUsersInRoom();
+
+          bool canStart = true;
+          string cantStartReason = "";
+
+          foreach (User user in pickUsers) {
+            if (user.CurrentScreen != NSScreen.Room) {
+              canStart = false;
+              cantStartReason = user.NameFormat() + " is not ready yet!";
+            }
+          }
+
           if (canStart) {
             Song newSong = new Song();
 
@@ -783,14 +721,12 @@ namespace OpenSMO
       }
     }
 
-    // Client sent user options
     public void NSCUPOpts()
     {
       ez.Discard(); // This contains a string with user options, but we don't really care about that too much for now.
     }
 
     byte packetCommandSub = 0;
-    // Client sent SMO packet (note subpacket comments)
     public void NSCSMOnline()
     {
       packetCommandSub = ez.Read1();
@@ -812,7 +748,7 @@ namespace OpenSMO
           return;
         }
 
-        Hashtable[] smoLoginCheck = Sql.Query("SELECT * FROM \"users\" WHERE \"Username\"='" + Sql.AddSlashes(smoUsername) + "'");
+        Hashtable[] smoLoginCheck = MySql.Query("SELECT * FROM users WHERE Username='" + MySql.AddSlashes(smoUsername) + "'");
         if (smoLoginCheck.Length == 1 && smoLoginCheck[0]["Password"].ToString() == smoPassword) {
           MainClass.AddLog(smoUsername + " logged in.");
 
@@ -836,20 +772,12 @@ namespace OpenSMO
           return;
         } else if (smoLoginCheck.Length == 0) {
           if (bool.Parse(mainClass.ServerConfig.Get("Allow_Registration"))) {
-            smoUsername = smoUsername.Trim();
+            MySql.Query("INSERT INTO users (Username,Password,Email,Rank,XP) VALUES(\"" + Sql.AddSlashes(smoUsername) + 
+"\",\"" + MySql.AddSlashes(smoPassword) + "\",\"\",0,0)");
+            MainClass.AddLog(smoUsername + " is now registered with hash " + smoPassword);
 
-            if (smoUsername.Trim() == "") {
-              ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCSMOnline));
-              ez.Write2(1);
-              ez.WriteNT("Registration failed! Invalid username.");
-              ez.SendPack();
-              return;
-            }
-
-            Sql.Query("INSERT INTO main.users (\"Username\",\"Password\",\"Email\",\"Rank\",\"XP\") VALUES(\"" + Sql.AddSlashes(smoUsername) + "\",\"" + Sql.AddSlashes(smoPassword) + "\",\"\",0,0)");
-            MainClass.AddLog(smoUsername + " is now registered");
-
-            User_Table = Sql.Query("SELECT * FROM \"users\" WHERE \"Username\"='" + Sql.AddSlashes(smoUsername) + "' AND \"Password\"='" + Sql.AddSlashes(smoPassword) + "'")[0];
+            User_Table = MySql.Query("SELECT * FROM users WHERE Username='" + MySql.AddSlashes(smoUsername) + "' AND Password='" + 
+MySql.AddSlashes(smoPassword) + "'")[0];
             User_ID = (int)User_Table["ID"];
             User_Name = (string)User_Table["Username"];
             User_Rank = (UserRank)User_Table["Rank"];
@@ -870,7 +798,7 @@ namespace OpenSMO
           }
         }
 
-        MainClass.AddLog(smoUsername + " tried logging in but failed");
+        MainClass.AddLog(smoUsername + " tried logging in with hash " + smoPassword + " but failed");
 
         ez.Write1((byte)(mainClass.ServerOffset + NSCommand.NSCSMOnline));
         ez.Write2(1);
@@ -890,7 +818,6 @@ namespace OpenSMO
 
         foreach (Room room in mainClass.Rooms) {
           if (room.Name == joinRoomName && (room.Password == joinRoomPass || IsModerator())) {
-            CurrentRoomRights = RoomRights.Player;
             CurrentRoom = room;
             SendToRoom();
             break;
@@ -933,14 +860,11 @@ namespace OpenSMO
       }
     }
 
-    // Client sent style update
     public void NSCSU()
     {
-      // We don't really care about this packet yet
       ez.Discard();
     }
 
-    // Client sent chat message
     public void NSCCM()
     {
       if (!RequiresAuthentication()) return;
