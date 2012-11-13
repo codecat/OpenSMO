@@ -812,7 +812,7 @@ namespace OpenSMO
           return;
         }
 
-        Hashtable[] smoLoginCheck = Sql.Query("SELECT * FROM \"users\" WHERE \"Username\"='" + Sql.AddSlashes(smoUsername) + "'");
+        Hashtable[] smoLoginCheck = MySql.Query("SELECT * FROM users WHERE Username='" + MySql.AddSlashes(smoUsername) + "'");
         if (smoLoginCheck.Length == 1 && smoLoginCheck[0]["Password"].ToString() == smoPassword) {
           MainClass.AddLog(smoUsername + " logged in.");
 
@@ -846,10 +846,10 @@ namespace OpenSMO
               return;
             }
 
-            Sql.Query("INSERT INTO main.users (\"Username\",\"Password\",\"Email\",\"Rank\",\"XP\") VALUES(\"" + Sql.AddSlashes(smoUsername) + "\",\"" + Sql.AddSlashes(smoPassword) + "\",\"\",0,0)");
+            MySql.Query("INSERT INTO users (Username,Password,Email,Rank,XP) VALUES(\"" + MySql.AddSlashes(smoUsername) + "\",\"" + MySql.AddSlashes(smoPassword) + "\",\"\",0,0)");
             MainClass.AddLog(smoUsername + " is now registered");
 
-            User_Table = Sql.Query("SELECT * FROM \"users\" WHERE \"Username\"='" + Sql.AddSlashes(smoUsername) + "' AND \"Password\"='" + Sql.AddSlashes(smoPassword) + "'")[0];
+            User_Table = MySql.Query("SELECT * FROM users WHERE Username='" + MySql.AddSlashes(smoUsername) + "' AND Password='" + MySql.AddSlashes(smoPassword) + "'")[0];
             User_ID = (int)User_Table["ID"];
             User_Name = (string)User_Table["Username"];
             User_Rank = (UserRank)User_Table["Rank"];

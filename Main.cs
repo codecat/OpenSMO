@@ -90,21 +90,17 @@ namespace OpenSMO
       if (ServerConfig.Contains("Server_Version")) ServerVersion = (byte)int.Parse(ServerConfig.Get("Server_Version"));
       if (ServerConfig.Contains("Server_MaxPlayers")) ServerMaxPlayers = (byte)int.Parse(ServerConfig.Get("Server_MaxPlayers"));
 
-      Sql.Filename = ServerConfig.Get("Database_File");
-      Sql.Version = int.Parse(ServerConfig.Get("Database_Version"));
-      Sql.Compress = bool.Parse(ServerConfig.Get("Database_Compressed"));
-      Sql.Connect();
+      MySql.Host = ServerConfig.Get("MySql_Host");
+      MySql.User = ServerConfig.Get("MySql_User");
+      MySql.Password = ServerConfig.Get("MySql_Password");
+      MySql.Database = ServerConfig.Get("MySql_Database");
 
-      if (!Sql.Connected)
-        AddLog("Please check your SQLite database.", true);
 
-      Sql.ReportErrors = false;
-      Hashtable[] fixedRooms = Sql.Query("SELECT * FROM fixedrooms;");
-      Sql.ReportErrors = true;
+      Hashtable[] fixedRooms = MySql.Query("SELECT * FROM fixedrooms;");
 
       if (fixedRooms == null) {
         AddLog("It appears there's no \"fixedrooms\" table, creating one now.");
-        Sql.Query(@"CREATE TABLE ""main"".""fixedrooms"" (
+        MySql.Query(@"CREATE TABLE ""main"".""fixedrooms"" (
           ""ID""  INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
           ""Name""  TEXT(255) NOT NULL,
           ""Description""  TEXT(255),
@@ -205,8 +201,6 @@ namespace OpenSMO
     public void UserThread()
     {
       while (true) {
-        Sql.Update();
-
         try {
           for (int i = 0; i < Scripting.UpdateHooks.Count; i++) {
             Scripting.UpdateHooks[i]();
@@ -349,7 +343,7 @@ namespace OpenSMO
 
                   roomID = parse[1];
 
-                  Hashtable[] userRes = Sql.Query("SELECT * FROM \"users\" WHERE \"Username\"='" + Sql.AddSlashes(parse[2]) + "'");
+                  Hashtable[] userRes =MySql.Query("SELECT * FROM users WHERE Username='" +MySql.AddSlashes(parse[2]) + "'");
                   if (userRes.Length != 1) {
                     break;
                   }
