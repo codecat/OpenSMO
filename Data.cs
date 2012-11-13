@@ -60,12 +60,12 @@ namespace OpenSMO {
 
         public static string BanUser(User user, int originID) {
             string IP = user.tcpClient.Client.RemoteEndPoint.ToString().Split(':')[0];
-            MySql.Query("INSERT INTO bans (IP,From) VALUES(\"" + IP + "\"," + originID + ")");
+            MySql.Query("INSERT INTO bans (IP,From) VALUES(\'" + IP + "\'," + originID + ")");
             return IP;
         }
 
         public static bool IsBanned(string IP) {
-            Hashtable[] res = MySql.Query("SELECT * FROM bans WHERE IP = \"" + MySql.AddSlashes(IP) + "\"");
+            Hashtable[] res = MySql.Query("SELECT * FROM bans WHERE IP = \'" + MySql.AddSlashes(IP) + "\'");
             return res.Length != 0;
         }
 
