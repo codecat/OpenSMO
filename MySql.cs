@@ -69,7 +69,7 @@ namespace OpenSMO
 
     		public static string AddSlashes(string str)
     		{
-      			return str.Replace("'", "''");
+      			return str.Replace("\\", "\\\\").Replace("'", "\\'");
     		} // end addslashes
 
 		public static Hashtable[] Query(string query)
